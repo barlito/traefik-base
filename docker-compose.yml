@@ -1,0 +1,32 @@
+version: "3.3"
+
+services:
+
+  traefik:
+    image: traefik:2.4
+    ports:
+      - 80:80
+      - 443:443
+      - 8080:8080
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/etc/traefik/traefik.yml
+      - ./traefik-dynamic.yml:/etc/traefik/traefik-dynamic.yml
+      - traefik-data:/etc/traefik
+    deploy:
+      labels:
+        - traefik.http.routers.traefik.rule=Host(`traefik.local.barlito.fr`)
+        - traefik.http.routers.traefik.service=api@internal
+        - traefik.http.services.traefik.loadbalancer.server.port=8080
+    networks:
+      - traefik_proxy
+
+volumes:
+      traefik-data:
+
+networks:
+  traefik_proxy:
+    driver: overlay
+    attachable: true
+

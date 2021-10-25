@@ -1,0 +1,20 @@
+api:
+    dashboard: true
+entryPoints:
+    http:
+        address: :80
+    https:
+        address: :443
+global:
+    sendAnonymousUsage: false
+log:
+    level: DEBUG
+providers:
+    docker:
+        endpoint: unix:///var/run/docker.sock
+        exposedByDefault: true
+        swarmMode: true
+        watch: true
+    file:
+        filename: /etc/traefik/traefik-dynamic.yml
+        watch: true
