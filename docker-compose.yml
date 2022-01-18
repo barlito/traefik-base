@@ -5,9 +5,18 @@ services:
   traefik:
     image: traefik:2.4
     ports:
-      - 80:80
-      - 443:443
-      - 8080:8080
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: host
+      - target: 443
+        published: 443
+        protocol: tcp
+        mode: host
+      - target: 8080
+        published: 8080
+        protocol: tcp
+        mode: host
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
