@@ -15,6 +15,7 @@ providers:
         exposedByDefault: true
         swarmMode: true
         watch: true
+        network: traefik_traefik_proxy
     file:
         filename: /etc/traefik/traefik-dynamic.yml
         watch: true
