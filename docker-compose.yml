@@ -13,6 +13,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik.yml:/etc/traefik/traefik.yml
       - ./traefik-dynamic.yml:/etc/traefik/traefik-dynamic.yml
+      - ./certs:/etc/certs:ro
       - traefik-data:/etc/traefik
     deploy:
       labels:

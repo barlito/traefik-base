@@ -1,4 +1,4 @@
 tls:
     certificates:
-    -   certFile: /certs/cert.crt
-        keyFile: /certs/privkey.pem
+        - certFile: "/etc/certs/local-cert.pem"
+          keyFile: "/etc/certs/local-key.pem"
