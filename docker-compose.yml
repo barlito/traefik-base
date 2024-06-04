@@ -3,11 +3,24 @@ version: "3.3"
 services:
 
   traefik:
-    image: traefik:2.4
+    image: traefik:3.0
     ports:
-      - 80:80
-      - 443:443
-      - 8080:8080
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: host
+      - target: 443
+        published: 443
+        protocol: tcp
+        mode: host
+      - target: 443
+        published: 443
+        protocol: udp
+        mode: host
+      - target: 8080
+        published: 8080
+        protocol: tcp
+        mode: host
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -17,9 +30,11 @@ services:
       - traefik-data:/etc/traefik
     deploy:
       labels:
-        - traefik.http.routers.traefik.rule=Host(`traefik.local.barlito.fr`)
-        - traefik.http.routers.traefik.service=api@internal
-        - traefik.http.services.traefik.loadbalancer.server.port=8080
+        - traefik.enable=true
+
+        - traefik.http.routers.dashboard.rule=Host(`traefik.local.barlito.fr`)
+        - traefik.http.routers.dashboard.service=api@internal
+        - traefik.http.services.dummy-svc.loadbalancer.server.port=9999
     networks:
       - traefik_proxy
 
