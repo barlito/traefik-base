@@ -35,6 +35,11 @@ services:
         - traefik.http.routers.dashboard.rule=Host(`traefik.local.barlito.fr`)
         - traefik.http.routers.dashboard.service=api@internal
         - traefik.http.services.dummy-svc.loadbalancer.server.port=9999
+
+        - traefik.http.routers.traefik-secure.rule=Host(`traefik.local.barlito.fr`)
+        - traefik.http.routers.traefik-secure.service=api@internal
+        - traefik.http.routers.traefik-secure.entrypoints=https
+        - traefik.http.routers.traefik-secure.tls=true
     networks:
       - traefik_proxy
 
