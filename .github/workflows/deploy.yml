@@ -1,0 +1,51 @@
+name: Deploy Traefik Stack
+
+# Deploy to production using GitHub Secrets
+# No .env file created - variables passed directly to docker stack deploy
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to production
+        run: |
+          # Copy files to server
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} "mkdir -p /opt/traefik"
+          scp -r * ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }}:/opt/traefik/
+
+          # Deploy with inline environment variables
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+            cd /opt/traefik
+            mkdir -p logs
+
+            # Deploy directly with environment variables (no .env file)
+            ENV=production \
+            TRAEFIK_IMAGE=traefik:3.0 \
+            DASHBOARD_HOST="${{ secrets.DASHBOARD_HOST }}" \
+            DASHBOARD_AUTH="${{ secrets.DASHBOARD_AUTH }}" \
+            ACME_EMAIL="${{ secrets.ACME_EMAIL }}" \
+            docker stack deploy -c docker-compose.yml traefik
+
+            echo "Deployment completed!"
+            docker service ls
+          EOF

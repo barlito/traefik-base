@@ -1,0 +1,46 @@
+api:
+    dashboard: true
+    insecure: false  # Disable insecure API access on port 8080
+
+entryPoints:
+    http:
+        address: :80
+        http2:
+            maxConcurrentStreams: 250
+    https:
+        address: :443
+        http2:
+            maxConcurrentStreams: 250
+        http3: {}
+
+certificatesResolvers:
+    letsencrypt:
+        acme:
+            email: "${ACME_EMAIL}"
+            storage: "${ACME_STORAGE:-/etc/traefik/acme.json}"
+            httpChallenge:
+                entryPoint: http
+
+global:
+    sendAnonymousUsage: false
+
+log:
+    level: "${LOG_LEVEL:-DEBUG}"
+
+accessLog:
+    filePath: "/var/log/traefik/access.log"
+    format: json
+    bufferingSize: 100
+    filters:
+        statusCodes:
+            - "400-599"
+
+providers:
+    swarm:
+        endpoint: unix:///var/run/docker.sock
+        exposedByDefault: false
+        watch: true
+        network: traefik_traefik_proxy
+    file:
+        filename: /etc/traefik/dynamic/config.yml
+        watch: true

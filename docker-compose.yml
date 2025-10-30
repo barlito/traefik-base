@@ -1,27 +1,34 @@
-version: "3.3"
+version: "3.8"
 
 services:
 
   traefik:
-    image: traefik:3.0
+    image: ${TRAEFIK_IMAGE:-traefik:3.0}
     ports:
       - 80:80
       - 443:443
       - 443:443/udp
       - 8080:8080
+    environment:
+      - ENV=${ENV:-local}
+      - DASHBOARD_AUTH=${DASHBOARD_AUTH}
+      - ACME_EMAIL=${ACME_EMAIL:-}
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik.yml:/etc/traefik/traefik.yml
-      - ./traefik-dynamic.yml:/etc/traefik/traefik-dynamic.yml
+      - ./traefik.${ENV:-local}.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik-dynamic.${ENV:-local}.yml:/etc/traefik/dynamic/config.yml:ro
       - ./certs:/etc/certs:ro
+      - ./logs:/var/log/traefik
       - traefik-data:/etc/traefik
     deploy:
       labels:
         - traefik.enable=true
-
-        - traefik.http.routers.dashboard.rule=Host(`traefik.local.barlito.fr`)
+        - traefik.http.routers.dashboard.rule=Host(`${DASHBOARD_HOST:-traefik.local.barlito.fr}`)
+        - traefik.http.routers.dashboard.entrypoints=https
+        - traefik.http.routers.dashboard.tls=true
         - traefik.http.routers.dashboard.service=api@internal
+        - traefik.http.routers.dashboard.middlewares=dashboard-auth@file,security-headers@file
         - traefik.http.services.dummy-svc.loadbalancer.server.port=9999
 
         - traefik.http.routers.traefik-secure.rule=Host(`traefik.local.barlito.fr`)
