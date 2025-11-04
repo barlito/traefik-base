@@ -1,8 +1,5 @@
 name: Deploy Traefik Stack
 
-# Deploy to production using GitHub Secrets
-# No .env file created - variables passed directly to docker stack deploy
-
 on:
   push:
     branches:
@@ -12,6 +9,12 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
+    env:
+      DOCKER_HOST: ssh://${{ vars.SERVER_USERNAME }}@${{ vars.SERVER_HOST }}:${{ vars.SERVER_PORT }}
+      DASHBOARD_HOST: ${{ secrets.DASHBOARD_HOST }}
+      DASHBOARD_AUTH: ${{ secrets.DASHBOARD_AUTH }}
+      ACME_EMAIL: ${{ secrets.ACME_EMAIL }}
 
     steps:
       - name: Checkout code
@@ -25,27 +28,14 @@ jobs:
       - name: Add server to known hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Deploy to production
+      - name: Deploy Stack
+        run: make deploy-prod
+
+      - name: Verify Deployment
         run: |
-          # Copy files to server
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} "mkdir -p /opt/traefik"
-          scp -r * ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }}:/opt/traefik/
-
-          # Deploy with inline environment variables
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
-            cd /opt/traefik
-            mkdir -p logs
-
-            # Deploy directly with environment variables (no .env file)
-            ENV=production \
-            TRAEFIK_IMAGE=traefik:3.0 \
-            DASHBOARD_HOST="${{ secrets.DASHBOARD_HOST }}" \
-            DASHBOARD_AUTH="${{ secrets.DASHBOARD_AUTH }}" \
-            ACME_EMAIL="${{ secrets.ACME_EMAIL }}" \
-            docker stack deploy -c docker-compose.yml traefik
-
-            echo "Deployment completed!"
-            docker service ls
-          EOF
+          echo "⏳ Waiting for service to be ready..."
+          sleep 10
+          docker service ls
+          docker service ps traefik_traefik --no-trunc

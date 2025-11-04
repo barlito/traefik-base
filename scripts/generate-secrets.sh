@@ -72,32 +72,15 @@ echo "$email"
 echo ""
 echo "======================================"
 echo ""
-
-# Optionally create .env.production
-read -p "Create .env.production file? [y/N]: " create_env
-
-if [[ "$create_env" =~ ^[Yy]$ ]]; then
-    cat > .env.production << EOF
-# Production Environment
-ENV=production
-TRAEFIK_IMAGE=traefik:3.0
-DASHBOARD_HOST=$host
-
-# Dashboard Authentication
-DASHBOARD_AUTH=$DASHBOARD_AUTH
-
-# Let's Encrypt Configuration
-ACME_EMAIL=$email
-EOF
-
-    echo "✅ Created .env.production"
-    echo "⚠️  WARNING: This file contains sensitive data!"
-    echo "   - Do NOT commit it to git (it's in .gitignore)"
-    echo "   - Use only for manual deployments"
-    echo "   - For GitHub Actions, use Secrets instead"
-else
-    echo "ℹ️  .env.production not created. Use GitHub Secrets for deployment."
-fi
-
+echo "ℹ️  Next steps:"
+echo "1. Go to GitHub → Settings → Secrets and variables → Actions"
+echo "2. Add the secrets above as 'Repository secrets'"
+echo "3. Add these variables as 'Repository variables':"
+echo "   - SERVER_USERNAME (your SSH user)"
+echo "   - SERVER_HOST (your server hostname/IP)"
+echo "   - SERVER_PORT (SSH port, default: 22)"
+echo ""
+echo "4. Add SSH_PRIVATE_KEY secret with your private key:"
+echo "   cat ~/.ssh/id_ed25519"
 echo ""
 echo "✅ Done!"

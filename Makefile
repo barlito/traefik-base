@@ -1,42 +1,54 @@
 stack_name=traefik
 
-# Default environment
-ENV ?= local
-
 .PHONY: help
 help:
 	@echo "Traefik Stack Management"
 	@echo ""
 	@echo "Usage:"
-	@echo "  make deploy          - Deploy with local config (default)"
-	@echo "  make deploy ENV=prod - Deploy with production config"
+	@echo "  make deploy-local    - Deploy local (bind mounts, mkcert certs)"
+	@echo "  make deploy-prod     - Deploy production (Docker configs, Let's Encrypt)"
 	@echo "  make undeploy        - Remove the stack"
 	@echo "  make logs            - Follow traefik logs"
-	@echo "  make restart         - Restart the stack"
+	@echo "  make logs-local      - View local logs (from ./logs/)"
+	@echo "  make logs-prod       - Export prod logs (from Docker volume)"
 	@echo ""
 
-.PHONY: deploy
-deploy:
-	@echo "Deploying traefik stack with $(ENV) configuration..."
-	@if [ "$(ENV)" = "prod" ]; then \
-		echo "Using production configuration"; \
-		set -a && . ./.env.production && set +a && docker stack deploy -c docker-compose.yml $(stack_name); \
-	else \
-		echo "Using local configuration"; \
-		set -a && . ./.env.local && set +a && docker stack deploy -c docker-compose.yml $(stack_name); \
+.PHONY: deploy-local
+deploy-local:
+	@echo "📦 Deploying Traefik (local)..."
+	@if [ ! -f .env.local ]; then \
+		echo "⚠️  .env.local not found, creating from example..."; \
+		cp .env.example .env.local; \
 	fi
-	@echo "Dashboard URL: https://$(shell grep DASHBOARD_HOST .env.$(ENV) 2>/dev/null | cut -d'=' -f2 || echo 'traefik.local.barlito.fr')"
+	@set -a && . ./.env.local && set +a && \
+		docker stack deploy -c docker-compose.yml -c docker-compose.local.yml $(stack_name)
+	@echo "✅ Deployed!"
+	@echo "📊 Dashboard: https://traefik.local.barlito.fr"
+
+.PHONY: deploy-prod
+deploy-prod:
+	@echo "🚀 Deploying Traefik (production)..."
+	@docker stack deploy -c docker-compose.yml -c docker-compose.prod.yml $(stack_name)
+	@echo "✅ Deployed!"
+	@echo "📊 Dashboard: https://$$DASHBOARD_HOST"
 
 .PHONY: undeploy
 undeploy:
-	docker stack rm $(stack_name)
+	@echo "🗑️  Removing Traefik stack..."
+	@docker stack rm $(stack_name)
+	@echo "✅ Stack removed!"
 
 .PHONY: logs
 logs:
-	docker service logs -f $(stack_name)_traefik
+	@docker service logs -f $(stack_name)_traefik
 
-.PHONY: restart
-restart: undeploy
-	@echo "Waiting for stack to be removed..."
-	@sleep 5
-	@$(MAKE) deploy ENV=$(ENV)
+.PHONY: logs-local
+logs-local:
+	@tail -f logs/access.log
+
+.PHONY: logs-prod
+logs-prod:
+	@echo "📥 Exporting production logs..."
+	@docker run --rm -v $(stack_name)_traefik-logs:/logs -v $$(pwd):/backup alpine \
+		tar czf /backup/logs-export-$$(date +%Y%m%d-%H%M%S).tar.gz -C /logs .
+	@echo "✅ Logs exported to logs-export-*.tar.gz"

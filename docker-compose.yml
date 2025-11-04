@@ -1,27 +1,35 @@
 version: "3.8"
 
-services:
+# Base configuration - common to all environments
+# Use with: docker stack deploy -c docker-compose.yml -c docker-compose.{local|prod}.yml
 
+services:
   traefik:
-    image: ${TRAEFIK_IMAGE:-traefik:3.0}
+    image: traefik:3.0
     ports:
-      - 80:80
-      - 443:443
-      - 443:443/udp
-      - 8080:8080
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: host
+      - target: 443
+        published: 443
+        protocol: tcp
+        mode: host
+      - target: 443
+        published: 443
+        protocol: udp
+        mode: host
+      - target: 8080
+        published: 8080
+        protocol: tcp
+        mode: host
     environment:
-      - ENV=${ENV:-local}
-      - DASHBOARD_AUTH=${DASHBOARD_AUTH}
+      - DASHBOARD_AUTH=${DASHBOARD_AUTH:-}
       - ACME_EMAIL=${ACME_EMAIL:-}
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik.${ENV:-local}.yml:/etc/traefik/traefik.yml:ro
-      - ./traefik-dynamic.${ENV:-local}.yml:/etc/traefik/dynamic/config.yml:ro
-      - ./certs:/etc/certs:ro
-      - ./logs:/var/log/traefik
-      - traefik-data:/etc/traefik
     deploy:
+      placement:
+        constraints:
+          - node.role == manager
       labels:
         - traefik.enable=true
         - traefik.http.routers.dashboard.rule=Host(`${DASHBOARD_HOST:-traefik.local.barlito.fr}`)
@@ -30,16 +38,8 @@ services:
         - traefik.http.routers.dashboard.service=api@internal
         - traefik.http.routers.dashboard.middlewares=dashboard-auth@file,security-headers@file
         - traefik.http.services.dummy-svc.loadbalancer.server.port=9999
-
-        - traefik.http.routers.traefik-secure.rule=Host(`traefik.local.barlito.fr`)
-        - traefik.http.routers.traefik-secure.service=api@internal
-        - traefik.http.routers.traefik-secure.entrypoints=https
-        - traefik.http.routers.traefik-secure.tls=true
     networks:
       - traefik_proxy
-
-volumes:
-      traefik-data:
 
 networks:
   traefik_proxy:

@@ -1,6 +1,6 @@
 # Traefik Base Configuration
 
-Production-ready Traefik 3.0 setup with separate local/production configurations.
+Production-ready Traefik 3.0 setup with Docker Compose overrides for local/production.
 
 ## Features
 
@@ -10,7 +10,9 @@ Production-ready Traefik 3.0 setup with separate local/production configurations
 - 🔐 Secure dashboard (auth in production only)
 - 📜 Let's Encrypt automatic certificates
 - 📊 Structured JSON access logs
-- 🌍 Environment-based configuration (local/production)
+- 🐧 Universal compatibility (Linux, WSL, single-node, multi-node)
+- 📦 **Docker Configs for prod** (no file sync needed!)
+- 🔧 **Bind mounts for local** (easy config editing)
 
 ## Quick Start
 
@@ -20,41 +22,51 @@ Production-ready Traefik 3.0 setup with separate local/production configurations
 # 1. Copy local configuration
 cp .env.example .env.local
 
-# 2. Generate local certificates (if expired)
-mkdir -p certs
+# 2. Generate local certificates
+mkdir -p certs logs
 mkcert -cert-file certs/local-cert.pem -key-file certs/local-key.pem "*.local.barlito.fr"
 
-# 3. Create logs directory
-mkdir -p logs
-
-# 4. Deploy
-make deploy
+# 3. Deploy
+make deploy-local
 ```
 
 Dashboard: https://traefik.local.barlito.fr (no authentication required)
 
+**Local uses bind mounts** - you can edit config files directly and they're reflected in the container.
+
 ### Production
 
 ```bash
-# 1. Generate production secrets
-./scripts/generate-secrets.sh
-
-# 2. Deploy to production
-make deploy ENV=prod
+# Deploy to production (via GitHub Actions or manually)
+make deploy-prod
 ```
 
 Dashboard: https://traefik.barlito.fr (HTTP Basic authentication required)
+
+**Production uses Docker configs** - configs are transferred via Docker API, no file sync needed!
 
 ## Available Commands
 
 ```bash
 make help           # Show help message
-make deploy         # Deploy locally (default)
-make deploy ENV=prod # Deploy to production
+make deploy-local   # Deploy local (bind mounts, mkcert certs)
+make deploy-prod    # Deploy production (Docker configs, Let's Encrypt)
 make undeploy       # Remove the stack
-make logs           # Follow Traefik logs
-make restart        # Restart the stack
+make logs           # Follow Traefik service logs
+make logs-local     # View local logs (from ./logs/)
+make logs-prod      # Export prod logs (from Docker volume)
 ```
+
+## Network Configuration
+
+This configuration uses **host mode** for port mapping, which provides:
+
+- ✅ **WSL Compatibility**: Works perfectly with WSL2 networking
+- ✅ **Linux Compatibility**: Native performance on Linux hosts
+- ✅ **Single-node**: Optimal for single Docker Swarm node setups
+- ✅ **Multi-node Ready**: Works with multi-node clusters (Traefik pinned to manager node)
+
+The `placement: constraints` ensures Traefik always runs on the manager node, making it compatible with future multi-node setups while maintaining a single Traefik instance.
 
 ## Configuration
 
@@ -69,11 +81,16 @@ make restart        # Restart the stack
 
 ### Configuration Files
 
+**Docker Compose**:
+- `docker-compose.yml` - Base configuration (common to all environments)
+- `docker-compose.local.yml` - Local override (bind mounts)
+- `docker-compose.prod.yml` - Production override (Docker configs)
+
+**Traefik Config**:
 - `traefik.local.yml` - Local static configuration (no Let's Encrypt, DEBUG logs)
 - `traefik.prod.yml` - Production static configuration (Let's Encrypt, INFO logs)
 - `traefik-dynamic.local.yml` - Local dynamic config (no auth)
 - `traefik-dynamic.prod.yml` - Production dynamic config (with auth)
-- `docker-compose.yml` - Docker Swarm stack
 
 ### Certificates
 
@@ -109,7 +126,8 @@ See [docs/GITHUB_ACTIONS.md](docs/GITHUB_ACTIONS.md) for setup instructions.
 
 ## Monitoring
 
-Access logs are available in `./logs/` directory in JSON format for easy integration with Grafana/Loki.
+**Local**: Logs in `./logs/access.log` (bind mount)
+**Production**: Logs in Docker volume `traefik_traefik-logs` (export with `make logs-prod`)
 
 To expose Prometheus metrics, add to `traefik.yml`:
 
@@ -158,13 +176,15 @@ certificatesResolvers:
 
 ```
 traefik-base/
-├── .env.example              # Environment template
-├── .env.local                # Local configuration
-├── docker-compose.yml        # Docker Swarm stack
-├── traefik.local.yml         # Local static config (no Let's Encrypt)
-├── traefik.prod.yml          # Production static config (with Let's Encrypt)
-├── traefik-dynamic.local.yml # Local dynamic config (no auth)
-├── traefik-dynamic.prod.yml  # Production dynamic config (with auth)
+├── .env.example                 # Environment template
+├── .env.local                   # Local configuration
+├── docker-compose.yml           # Base configuration (common)
+├── docker-compose.local.yml     # Local override (bind mounts)
+├── docker-compose.prod.yml      # Production override (Docker configs)
+├── traefik.local.yml            # Local static config (DEBUG, no Let's Encrypt)
+├── traefik.prod.yml             # Production static config (INFO, Let's Encrypt)
+├── traefik-dynamic.local.yml    # Local dynamic config (no auth)
+├── traefik-dynamic.prod.yml     # Production dynamic config (with auth)
 ├── Makefile                  # Deployment commands
 ├── certs/                    # Local certificates (mkcert)
 ├── logs/                     # Access logs

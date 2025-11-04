@@ -1,0 +1,30 @@
+version: "3.8"
+
+# Production override - uses Docker configs (no rsync needed!)
+
+configs:
+  traefik_static:
+    file: ./traefik.prod.yml
+  traefik_dynamic:
+    file: ./traefik-dynamic.prod.yml
+
+services:
+  traefik:
+    environment:
+      - ENV=prod
+    configs:
+      - source: traefik_static
+        target: /etc/traefik/traefik.yml
+        mode: 0444
+      - source: traefik_dynamic
+        target: /etc/traefik/dynamic/config.yml
+        mode: 0444
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-logs:/var/log/traefik
+      - traefik-data:/etc/traefik
+
+volumes:
+  traefik-logs:
+  traefik-data:

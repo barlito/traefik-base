@@ -2,19 +2,27 @@
 
 Guide to automatically deploy Traefik with GitHub Actions.
 
-## GitHub Secrets Configuration
+## GitHub Configuration
 
-Go to **Settings** → **Secrets and variables** → **Actions** and add:
+### Repository Variables
 
-### Required Secrets
+Go to **Settings** → **Secrets and variables** → **Actions** → **Variables** and add:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `SERVER_USERNAME` | SSH username | `root` or `deploy` |
+| `SERVER_HOST` | Server hostname or IP | `server.barlito.fr` or `1.2.3.4` |
+| `SERVER_PORT` | SSH port | `22` or `2222` |
+
+### Repository Secrets
+
+Go to **Settings** → **Secrets and variables** → **Actions** → **Secrets** and add:
 
 | Secret | Description | Example |
 |--------|-------------|---------|
-| `SSH_PRIVATE_KEY` | SSH private key to connect to server | Content of `~/.ssh/id_rsa` |
-| `SSH_USER` | SSH username | `root` or `deploy` |
-| `SERVER_HOST` | Server hostname or IP | `server.barlito.fr` or `1.2.3.4` |
+| `SSH_PRIVATE_KEY` | SSH private key (ed25519) | Content of `~/.ssh/id_ed25519` |
 | `DASHBOARD_HOST` | Traefik dashboard domain | `traefik.barlito.fr` |
-| `DASHBOARD_AUTH` | HTTP Basic authentication | Generated with `htpasswd -nb admin password` |
+| `DASHBOARD_AUTH` | HTTP Basic authentication | `admin:$apr1$xyz...` |
 | `ACME_EMAIL` | Let's Encrypt email | `admin@barlito.fr` |
 
 ## Generating Secrets
@@ -55,14 +63,25 @@ htpasswd -nb admin your_secure_password
 
 File: `.github/workflows/deploy.yml`
 
-**Features**:
-- Passes variables directly to `docker stack deploy`
-- No `.env` file created on server
-- More secure (no temporary file with secrets)
+**Ultra-simple deployment with Docker configs**:
+- Uses `DOCKER_HOST` to connect to remote Docker daemon via SSH
+- Docker configs transfer files automatically (no rsync!)
+- Passes variables directly to `docker stack deploy` (no `.env` file)
+- `docker stack deploy` automatically updates if stack exists
+
+**How it works**:
+1. ✅ Checkout code from repository
+2. ✅ Setup SSH connection with private key
+3. ✅ Deploy with `make deploy-prod` (uses DOCKER_HOST)
+4. ✅ Verify deployment
+
+Docker handles transferring config files via the API - no file sync needed!
+
+The workflow uses the Makefile command for consistency - same command for manual and automated deployments.
 
 ## Usage
 
-### Automatic Deployment
+### Automatic Deployment (on push)
 Push to `master` branch:
 ```bash
 git add .
@@ -70,13 +89,15 @@ git commit -m "Update traefik config"
 git push origin master
 ```
 
-Workflow triggers automatically.
+Workflow triggers automatically and **updates** the existing stack.
 
 ### Manual Deployment
 1. Go to **Actions** on GitHub
 2. Select "Deploy Traefik Stack" workflow
 3. Click **Run workflow**
-4. Select branch and run
+4. Select branch and click "Run workflow"
+
+Note: `docker stack deploy` automatically updates the stack if it already exists.
 
 ## Deployment Structure
 
@@ -120,24 +141,36 @@ jobs:
     # Requires manual approval before deployment
 ```
 
-## Alternative: Docker Context Deployment
+## Docker Configs vs Bind Mounts
 
-If you prefer deploying directly from GitHub Actions without SSH:
+This project uses different strategies for local and production:
 
+### Local Development (`docker-compose.local.yml`)
 ```yaml
-- name: Setup Docker Context
-  run: |
-    docker context create remote --docker "host=ssh://${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }}"
-    docker context use remote
-
-- name: Deploy Stack
-  env:
-    ENV: production
-    DASHBOARD_HOST: ${{ secrets.DASHBOARD_HOST }}
-    # ... other vars
-  run: |
-    docker stack deploy -c docker-compose.yml traefik
+volumes:
+  - ./traefik.local.yml:/etc/traefik/traefik.yml  # Bind mount
+  - ./logs:/var/log/traefik                        # Bind mount
 ```
+**Why?** Easy to edit configs and view logs directly on your machine.
+
+### Production (`docker-compose.prod.yml`)
+```yaml
+configs:
+  traefik_static:
+    file: ./traefik.prod.yml  # Docker config
+volumes:
+  - traefik-logs:/var/log/traefik  # Docker volume
+```
+**Why?** Docker transfers configs via API (no file sync!), logs in managed volume.
+
+### Deployment Flow
+
+1. GitHub runner has `traefik.prod.yml` locally
+2. `docker stack deploy` reads the file
+3. Docker sends it to the server via DOCKER_HOST
+4. Swarm stores it and mounts in container
+
+**Zero file sync needed!** 🎉
 
 ## Troubleshooting
 
@@ -184,5 +217,6 @@ Use the provided script to generate secrets:
 
 This will:
 - Generate `DASHBOARD_AUTH` with htpasswd
-- Display formatted values for GitHub Secrets
-- Optionally create `.env.production` for manual deployments
+- Collect required configuration values
+- Display formatted values ready to paste into GitHub Secrets
+- Provide next steps for completing the setup
