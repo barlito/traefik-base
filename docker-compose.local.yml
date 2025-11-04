@@ -1,6 +1,7 @@
 version: "3.8"
 
-# Local override - uses bind mounts for easy config editing
+# Local override for Linux - uses bind mounts with HTTP/3 support
+# For WSL, use docker-compose.wsl.yml instead
 
 services:
   traefik:

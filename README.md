@@ -4,13 +4,13 @@ Production-ready Traefik 3.0 setup with Docker Compose overrides for local/produ
 
 ## Features
 
-- 🚀 HTTP/3 support
+- 🚀 HTTP/3 support (Linux native, TCP-only fallback for WSL)
 - 🔒 Automatic HTTP → HTTPS redirect
 - 🛡️ Security headers (HSTS, X-Frame-Options, CSP, etc.)
 - 🔐 Secure dashboard (auth in production only)
 - 📜 Let's Encrypt automatic certificates
 - 📊 Structured JSON access logs
-- 🐧 Universal compatibility (Linux, WSL, single-node, multi-node)
+- 🐧 **Auto-detection**: WSL vs Linux (automatic in `make deploy-local`)
 - 📦 **Docker Configs for prod** (no file sync needed!)
 - 🔧 **Bind mounts for local** (easy config editing)
 
@@ -26,11 +26,15 @@ cp .env.example .env.local
 mkdir -p certs logs
 mkcert -cert-file certs/local-cert.pem -key-file certs/local-key.pem "*.local.barlito.fr"
 
-# 3. Deploy
+# 3. Deploy (auto-detects WSL vs Linux)
 make deploy-local
 ```
 
 Dashboard: https://traefik.local.barlito.fr (no authentication required)
+
+**Auto-detection**: The Makefile automatically detects if you're on WSL or Linux:
+- **Linux**: Uses `docker-compose.local.yml` with HTTP/3 support (TCP+UDP on port 443)
+- **WSL**: Uses `docker-compose.wsl.yml` without HTTP/3 (TCP only, due to WSL port limitations)
 
 **Local uses bind mounts** - you can edit config files directly and they're reflected in the container.
 
@@ -59,14 +63,21 @@ make logs-prod      # Export prod logs (from Docker volume)
 
 ## Network Configuration
 
-This configuration uses **host mode** for port mapping, which provides:
+This setup automatically adapts to your environment:
 
-- ✅ **WSL Compatibility**: Works perfectly with WSL2 networking
-- ✅ **Linux Compatibility**: Native performance on Linux hosts
-- ✅ **Single-node**: Optimal for single Docker Swarm node setups
-- ✅ **Multi-node Ready**: Works with multi-node clusters (Traefik pinned to manager node)
+### Linux (Native Docker)
+- Uses standard port notation (`80:80/tcp`, `443:443/tcp`, `443:443/udp`)
+- ✅ **HTTP/3 enabled** via UDP on port 443
+- ✅ Full performance without mode restrictions
+- Used by: `docker-compose.local.yml` and `docker-compose.prod.yml`
 
-The `placement: constraints` ensures Traefik always runs on the manager node, making it compatible with future multi-node setups while maintaining a single Traefik instance.
+### WSL (Windows Subsystem for Linux)
+- Uses **host mode** port mapping (required for WSL networking)
+- ⚠️ **HTTP/3 disabled** (WSL limitation: can't bind TCP+UDP on same port)
+- ✅ TCP-only operation on ports 80 and 443
+- Used by: `docker-compose.wsl.yml`
+
+The Makefile automatically detects your environment and deploys the correct configuration.
 
 ## Configuration
 
@@ -83,7 +94,8 @@ The `placement: constraints` ensures Traefik always runs on the manager node, ma
 
 **Docker Compose**:
 - `docker-compose.yml` - Base configuration (common to all environments)
-- `docker-compose.local.yml` - Local override (bind mounts)
+- `docker-compose.local.yml` - Local override for Linux (bind mounts, HTTP/3)
+- `docker-compose.wsl.yml` - Local override for WSL (bind mounts, no HTTP/3)
 - `docker-compose.prod.yml` - Production override (Docker configs)
 
 **Traefik Config**:
@@ -179,13 +191,14 @@ traefik-base/
 ├── .env.example                 # Environment template
 ├── .env.local                   # Local configuration
 ├── docker-compose.yml           # Base configuration (common)
-├── docker-compose.local.yml     # Local override (bind mounts)
+├── docker-compose.local.yml     # Local override for Linux (bind mounts, HTTP/3)
+├── docker-compose.wsl.yml       # Local override for WSL (bind mounts, no HTTP/3)
 ├── docker-compose.prod.yml      # Production override (Docker configs)
 ├── traefik.local.yml            # Local static config (DEBUG, no Let's Encrypt)
 ├── traefik.prod.yml             # Production static config (INFO, Let's Encrypt)
 ├── traefik-dynamic.local.yml    # Local dynamic config (no auth)
 ├── traefik-dynamic.prod.yml     # Production dynamic config (with auth)
-├── Makefile                  # Deployment commands
+├── Makefile                  # Deployment commands (auto-detects WSL/Linux)
 ├── certs/                    # Local certificates (mkcert)
 ├── logs/                     # Access logs
 ├── docs/                     # Documentation
