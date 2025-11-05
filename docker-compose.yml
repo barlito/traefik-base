@@ -15,6 +15,9 @@ services:
       - DASHBOARD_AUTH=${DASHBOARD_AUTH:-}
       - ACME_EMAIL=${ACME_EMAIL:-}
     deploy:
+      placement:
+        constraints:
+          - node.role == manager
       labels:
         - traefik.enable=true
         - traefik.http.routers.dashboard.rule=Host(`${DASHBOARD_HOST:-traefik.local.barlito.fr}`)
