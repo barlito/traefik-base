@@ -1,0 +1,20 @@
+version: "3.8"
+
+# Local override for Linux - uses bind mounts with HTTP/3 support
+# For WSL, use docker-compose.wsl.yml instead
+
+services:
+  traefik:
+    environment:
+      - ENV=local
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.local.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik-dynamic.local.yml:/etc/traefik/dynamic/config.yml:ro
+      - ./certs:/etc/certs:ro
+      - ./logs:/var/log/traefik
+      - traefik-data:/etc/traefik
+
+volumes:
+  traefik-data:

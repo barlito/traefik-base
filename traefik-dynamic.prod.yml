@@ -1,0 +1,50 @@
+http:
+  middlewares:
+    # Redirect HTTP to HTTPS
+    redirect-to-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+    # Security Headers
+    security-headers:
+      headers:
+        frameDeny: true
+        browserXssFilter: true
+        contentTypeNosniff: true
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        customResponseHeaders:
+          X-Powered-By: ""
+          Server: ""
+
+    # Dashboard Authentication for production
+    # Generate password with: htpasswd -nb admin your_password
+    dashboard-auth:
+      basicAuth:
+        users:
+          - "${DASHBOARD_AUTH}"
+        removeHeader: true
+
+  routers:
+    # Global HTTP to HTTPS redirect
+    http-catchall:
+      rule: "PathPrefix(`/`)"
+      entryPoints:
+        - http
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+      priority: 1
+
+tls:
+  # Let's Encrypt certificates will be automatically managed
+  # Local certificates can still be added here if needed
+  options:
+    default:
+      minVersion: VersionTLS12
+      cipherSuites:
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305

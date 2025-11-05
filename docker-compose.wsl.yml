@@ -1,0 +1,36 @@
+version: "3.8"
+
+# WSL override - no HTTP/3 due to WSL port limitation
+# WSL can't publish same port with different protocols
+
+services:
+  traefik:
+    environment:
+      - ENV=local
+    ports:
+      # Override to remove UDP/443 (HTTP/3)
+      # WSL limitation: can't bind TCP+UDP on same port
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: host
+      - target: 443
+        published: 443
+        protocol: tcp
+        mode: host
+      # No 443/udp here - WSL limitation
+      - target: 8080
+        published: 8080
+        protocol: tcp
+        mode: host
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.local.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik-dynamic.local.yml:/etc/traefik/dynamic/config.yml:ro
+      - ./certs:/etc/certs:ro
+      - ./logs:/var/log/traefik
+      - traefik-data:/etc/traefik
+
+volumes:
+  traefik-data:
