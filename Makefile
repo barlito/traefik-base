@@ -11,9 +11,7 @@ help:
 	@echo "  make deploy-local    - Deploy local (auto-detects WSL vs Linux)"
 	@echo "  make deploy-prod     - Deploy production (Docker configs, Let's Encrypt)"
 	@echo "  make undeploy        - Remove the stack"
-	@echo "  make logs            - Follow traefik logs"
-	@echo "  make logs-local      - View local logs (from ./logs/)"
-	@echo "  make logs-prod       - Export prod logs (from Docker volume)"
+	@echo "  make logs            - Follow traefik logs (via docker service logs)"
 	@echo ""
 ifeq ($(IS_WSL),true)
 	@echo "🔍 WSL detected - will use docker-compose.wsl.yml (no HTTP/3)"
@@ -64,14 +62,3 @@ undeploy:
 .PHONY: logs
 logs:
 	@docker service logs -f $(stack_name)_traefik
-
-.PHONY: logs-local
-logs-local:
-	@tail -f logs/access.log
-
-.PHONY: logs-prod
-logs-prod:
-	@echo "📥 Exporting production logs..."
-	@docker run --rm -v $(stack_name)_traefik-logs:/logs -v $$(pwd):/backup alpine \
-		tar czf /backup/logs-export-$$(date +%Y%m%d-%H%M%S).tar.gz -C /logs .
-	@echo "✅ Logs exported to logs-export-*.tar.gz"

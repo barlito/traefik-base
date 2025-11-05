@@ -29,7 +29,6 @@ services:
       - ./traefik.local.yml:/etc/traefik/traefik.yml:ro
       - ./traefik-dynamic.local.yml:/etc/traefik/dynamic/config.yml:ro
       - ./certs:/etc/certs:ro
-      - ./logs:/var/log/traefik
       - traefik-data:/etc/traefik
 
 volumes:
