@@ -29,7 +29,7 @@ log:
   level: INFO  # Production log level
 
 accessLog:
-  filePath: "/var/log/traefik/access.log"
+  # No filePath = stdout (for Docker logging driver to Loki/Fluentd)
   format: json
   bufferingSize: 100
   filters:

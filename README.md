@@ -9,7 +9,7 @@ Production-ready Traefik 3.0 setup with Docker Compose overrides for local/produ
 - 🛡️ Security headers (HSTS, X-Frame-Options, CSP, etc.)
 - 🔐 Secure dashboard (auth in production only)
 - 📜 Let's Encrypt automatic certificates
-- 📊 Structured JSON access logs
+- 📊 Structured JSON logs to stdout (ready for Loki/Fluentd)
 - 🐧 **Auto-detection**: WSL vs Linux (automatic in `make deploy-local`)
 - 📦 **Docker Configs for prod** (no file sync needed!)
 - 🔧 **Bind mounts for local** (easy config editing)
@@ -23,7 +23,7 @@ Production-ready Traefik 3.0 setup with Docker Compose overrides for local/produ
 cp .env.example .env.local
 
 # 2. Generate local certificates
-mkdir -p certs logs
+mkdir -p certs
 mkcert -cert-file certs/local-cert.pem -key-file certs/local-key.pem "*.local.barlito.fr"
 
 # 3. Deploy (auto-detects WSL vs Linux)
@@ -56,9 +56,7 @@ make help           # Show help message
 make deploy-local   # Deploy local (bind mounts, mkcert certs)
 make deploy-prod    # Deploy production (Docker configs, Let's Encrypt)
 make undeploy       # Remove the stack
-make logs           # Follow Traefik service logs
-make logs-local     # View local logs (from ./logs/)
-make logs-prod      # Export prod logs (from Docker volume)
+make logs           # Follow Traefik service logs (via docker service logs)
 ```
 
 ## Network Configuration
@@ -120,7 +118,7 @@ Production deployment includes:
 - ✅ INFO log level (no verbose debug logs)
 - ✅ Let's Encrypt with automatic renewal
 - ✅ TLS 1.2+ only with secure cipher suites
-- ✅ JSON access logs (4xx/5xx errors only)
+- ✅ JSON access logs to stdout (4xx/5xx errors only)
 
 For detailed security headers explanation, see [docs/SECURITY_HEADERS.md](docs/SECURITY_HEADERS.md)
 
@@ -133,13 +131,36 @@ See [docs/GITHUB_ACTIONS.md](docs/GITHUB_ACTIONS.md) for setup instructions.
 **Benefits**:
 - No `.env.production` file in repository
 - Secrets managed by GitHub
-- Automatic deployment on push
+- Manual deployment trigger (workflow_dispatch)
 - Deployment traceability
 
 ## Monitoring
 
-**Local**: Logs in `./logs/access.log` (bind mount)
-**Production**: Logs in Docker volume `traefik_traefik-logs` (export with `make logs-prod`)
+### Logs
+
+All logs are sent to **stdout** for Docker-native logging:
+
+```bash
+# View all logs (local or prod)
+make logs
+
+# Or directly with docker
+docker service logs -f traefik_traefik
+```
+
+**For centralized logging**, configure Docker logging driver to send to Loki, Fluentd, or other log aggregators:
+
+```yaml
+# In docker-compose.yml
+services:
+  traefik:
+    logging:
+      driver: loki
+      options:
+        loki-url: "http://loki:3100/loki/api/v1/push"
+```
+
+### Metrics
 
 To expose Prometheus metrics, add to `traefik.yml`:
 
@@ -200,7 +221,6 @@ traefik-base/
 ├── traefik-dynamic.prod.yml     # Production dynamic config (with auth)
 ├── Makefile                  # Deployment commands (auto-detects WSL/Linux)
 ├── certs/                    # Local certificates (mkcert)
-├── logs/                     # Access logs
 ├── docs/                     # Documentation
 │   ├── SECURITY_HEADERS.md   # Security headers explained
 │   ├── GITHUB_ACTIONS.md     # CI/CD setup guide

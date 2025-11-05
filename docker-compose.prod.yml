@@ -22,9 +22,7 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - traefik-logs:/var/log/traefik
       - traefik-data:/etc/traefik
 
 volumes:
-  traefik-logs:
   traefik-data:

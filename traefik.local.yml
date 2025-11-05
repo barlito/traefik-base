@@ -19,13 +19,7 @@ global:
 log:
   level: DEBUG  # Verbose for local development
 
-accessLog:
-  filePath: "/var/log/traefik/access.log"
-  format: json
-  bufferingSize: 100
-  filters:
-    statusCodes:
-      - "400-599"
+# No access logs in local - use docker service logs instead
 
 providers:
   swarm:
