@@ -1,1 +1,13 @@
 .idea
+
+# Environment files (keep examples only)
+.env
+.env.local
+.env.production
+
+# Logs
+logs/
+*.log
+
+# Traefik data
+acme.json

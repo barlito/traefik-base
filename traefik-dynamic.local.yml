@@ -1,0 +1,42 @@
+http:
+  middlewares:
+    # Redirect HTTP to HTTPS
+    redirect-to-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+    # Security Headers
+    security-headers:
+      headers:
+        frameDeny: true
+        browserXssFilter: true
+        contentTypeNosniff: true
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        customResponseHeaders:
+          X-Powered-By: ""
+          Server: ""
+
+    # No authentication for local development
+    dashboard-auth:
+      headers:
+        customRequestHeaders:
+          X-Local-Dev: "true"
+
+  routers:
+    # Global HTTP to HTTPS redirect
+    http-catchall:
+      rule: "PathPrefix(`/`)"
+      entryPoints:
+        - http
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+      priority: 1
+
+tls:
+  certificates:
+    - certFile: "/etc/certs/local-cert.pem"
+      keyFile: "/etc/certs/local-key.pem"

@@ -1,0 +1,41 @@
+name: Deploy Traefik Stack
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      DOCKER_HOST: ssh://${{ vars.SERVER_USERNAME }}@${{ vars.SERVER_HOST }}:${{ vars.SERVER_PORT }}
+      DASHBOARD_HOST: ${{ secrets.DASHBOARD_HOST }}
+      DASHBOARD_AUTH: ${{ secrets.DASHBOARD_AUTH }}
+      ACME_EMAIL: ${{ secrets.ACME_EMAIL }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy Stack
+        run: make deploy-prod
+
+      - name: Verify Deployment
+        run: |
+          echo "⏳ Waiting for service to be ready..."
+          sleep 10
+          docker service ls
+          docker service ps traefik_traefik --no-trunc
