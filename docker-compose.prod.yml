@@ -12,6 +12,7 @@ services:
   traefik:
     environment:
       - ENV=prod
+      - TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL=${ACME_EMAIL}
     deploy:
       labels:
         # Define basicauth middleware with environment variable

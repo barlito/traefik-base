@@ -16,8 +16,7 @@ entryPoints:
 certificatesResolvers:
   letsencrypt:
     acme:
-      # Email will be set via environment variable in docker-compose
-      email: "${ACME_EMAIL}"
+      # Email set via environment variable TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL
       storage: /etc/traefik/acme.json
       httpChallenge:
         entryPoint: http
