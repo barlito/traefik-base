@@ -1,15 +1,13 @@
 version: "3.8"
 
-# WSL override - no HTTP/3 due to WSL port limitation
-# WSL can't publish same port with different protocols
+# WSL override - Uses host mode for port publishing to avoid issues with WSL2 networking
 
 services:
   traefik:
     environment:
       - ENV=local
     ports:
-      # Override to remove UDP/443 (HTTP/3)
-      # WSL limitation: can't bind TCP+UDP on same port
+      # Use mode: host for WSL
       - target: 80
         published: 80
         protocol: tcp
@@ -18,7 +16,10 @@ services:
         published: 443
         protocol: tcp
         mode: host
-      # No 443/udp here - WSL limitation
+      - target: 443
+        published: 8443
+        protocol: udp
+        mode: host  # HTTP/3 on port 8443 (no conflict with 443/TCP)
       - target: 8080
         published: 8080
         protocol: tcp

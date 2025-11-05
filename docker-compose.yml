@@ -9,7 +9,7 @@ services:
     ports:
       - "80:80/tcp"
       - "443:443/tcp"
-      - "443:443/udp"  # HTTP/3
+      - "8443:443/udp"  # HTTP/3 on alternative port (avoid TCP+UDP conflict)
       - "8080:8080/tcp"
     environment:
       - DASHBOARD_AUTH=${DASHBOARD_AUTH:-}
