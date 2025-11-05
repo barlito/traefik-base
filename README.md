@@ -4,7 +4,7 @@ Production-ready Traefik 3.0 setup with Docker Compose overrides for local/produ
 
 ## Features
 
-- 🚀 HTTP/3 support (Linux native, TCP-only fallback for WSL)
+- 🚀 HTTP/3 support on port 8443 (works everywhere: Linux, WSL, Production)
 - 🔒 Automatic HTTP → HTTPS redirect
 - 🛡️ Security headers (HSTS, X-Frame-Options, CSP, etc.)
 - 🔐 Secure dashboard (auth in production only)
@@ -61,19 +61,27 @@ make logs           # Follow Traefik service logs (via docker service logs)
 
 ## Network Configuration
 
-This setup automatically adapts to your environment:
+### Ports
 
-### Linux (Native Docker)
-- Uses standard port notation (`80:80/tcp`, `443:443/tcp`, `443:443/udp`)
-- ✅ **HTTP/3 enabled** via UDP on port 443
-- ✅ Full performance without mode restrictions
-- Used by: `docker-compose.local.yml` and `docker-compose.prod.yml`
+- **80/TCP** - HTTP (redirects to HTTPS)
+- **443/TCP** - HTTPS (HTTP/2)
+- **8443/UDP** - HTTP/3 (QUIC)
+- **8080/TCP** - Dashboard
 
-### WSL (Windows Subsystem for Linux)
-- Uses **host mode** port mapping (required for WSL networking)
-- ⚠️ **HTTP/3 disabled** (WSL limitation: can't bind TCP+UDP on same port)
-- ✅ TCP-only operation on ports 80 and 443
-- Used by: `docker-compose.wsl.yml`
+### HTTP/3 on Alternative Port
+
+HTTP/3 runs on **port 8443/UDP** instead of 443/UDP to avoid Docker Swarm limitations with TCP+UDP on the same port.
+
+**How it works:**
+1. Clients connect via HTTPS on 443/TCP
+2. Traefik sends `alt-svc: h3=":8443"` header
+3. Browsers automatically upgrade to HTTP/3 on 8443/UDP for subsequent requests
+
+**Benefits:**
+- ✅ Works on all environments (Linux, WSL, Production)
+- ✅ No port conflict between TCP and UDP
+- ✅ Automatic HTTP/3 upgrade via standard `alt-svc` mechanism
+- ✅ Fallback to HTTP/2 if HTTP/3 unavailable
 
 The Makefile automatically detects your environment and deploys the correct configuration.
 

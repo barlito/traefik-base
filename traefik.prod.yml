@@ -11,7 +11,8 @@ entryPoints:
     address: :443
     http2:
       maxConcurrentStreams: 250
-    http3: {}
+    http3:
+      advertisedPort: 8443  # Announce HTTP/3 on external port 8443
 
 certificatesResolvers:
   letsencrypt:
