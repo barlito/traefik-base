@@ -12,6 +12,13 @@ services:
   traefik:
     environment:
       - ENV=prod
+      - TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL=${ACME_EMAIL}
+    deploy:
+      labels:
+        # Define basicauth middleware with environment variable
+        - traefik.http.middlewares.dashboard-auth.basicauth.users=${DASHBOARD_AUTH}
+        # Override dashboard router to use auth
+        - traefik.http.routers.dashboard.middlewares=dashboard-auth@swarm,security-headers@file
     configs:
       - source: traefik_static
         target: /etc/traefik/traefik.yml
