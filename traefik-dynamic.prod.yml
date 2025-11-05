@@ -19,13 +19,8 @@ http:
           X-Powered-By: ""
           Server: ""
 
-    # Dashboard Authentication for production
-    # Generate password with: htpasswd -nb admin your_password
-    dashboard-auth:
-      basicAuth:
-        users:
-          - "${DASHBOARD_AUTH}"
-        removeHeader: true
+    # Dashboard Authentication is defined via Docker labels in docker-compose.prod.yml
+    # using DASHBOARD_AUTH environment variable
 
   routers:
     # Global HTTP to HTTPS redirect
