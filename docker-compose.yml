@@ -9,7 +9,7 @@ services:
     ports:
       - "80:80/tcp"
       - "443:443/tcp"
-      - "8443:443/udp"  # HTTP/3 on alternative port (avoid TCP+UDP conflict)
+      - "444:443/udp"  # HTTP/3 on alternative port 444 (avoid TCP+UDP conflict, <1024 for Chrome Alt-Svc)
       - "8080:8080/tcp"
     environment:
       - DASHBOARD_AUTH=${DASHBOARD_AUTH:-}
