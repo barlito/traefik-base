@@ -2,6 +2,12 @@ name: Deploy Traefik Stack
 
 on:
   workflow_dispatch:  # Manual trigger only
+    inputs:
+      undeploy:
+        description: 'Full restart: undeploy first, then deploy (clean state)'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   deploy:
@@ -26,6 +32,14 @@ jobs:
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Undeploy Stack (if restart requested)
+        if: ${{ inputs.undeploy == true }}
+        run: |
+          echo "🗑️ Undeploying stack for clean restart..."
+          make undeploy
+          echo "⏳ Waiting for stack to be fully removed..."
+          sleep 5
 
       - name: Deploy Stack
         run: make deploy-prod
