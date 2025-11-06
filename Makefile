@@ -56,8 +56,8 @@ deploy-prod:
 .PHONY: undeploy
 undeploy:
 	@echo "🗑️  Removing Traefik stack..."
-	@docker stack rm $(stack_name)
-	@echo "✅ Stack removed!"
+	@docker stack rm $(stack_name) || true
+	@echo "✅ Stack removed (network may remain if used by other services)!"
 
 .PHONY: logs
 logs:
