@@ -12,7 +12,7 @@ entryPoints:
     http2:
       maxConcurrentStreams: 250
     http3:
-      advertisedPort: 8443  # Announce HTTP/3 on external port 8443
+      advertisedPort: 444  # Announce HTTP/3 on external port 444 (<1024 for Chrome Alt-Svc)
 
 global:
   sendAnonymousUsage: false
