@@ -5,7 +5,7 @@ version: "3.8"
 
 services:
   traefik:
-    image: traefik:3.3
+    image: traefik:3.6
     ports:
       - "80:80/tcp"
       - "443:443/tcp"
