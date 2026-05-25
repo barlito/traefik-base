@@ -16,8 +16,9 @@ jobs:
     env:
       DOCKER_HOST: ssh://${{ vars.SERVER_USERNAME }}@${{ vars.SERVER_HOST }}:${{ vars.SERVER_PORT }}
       DASHBOARD_HOST: ${{ secrets.DASHBOARD_HOST }}
-      DASHBOARD_AUTH: ${{ secrets.DASHBOARD_AUTH }}
       ACME_EMAIL: ${{ secrets.ACME_EMAIL }}
+      AUTHENTIK_SECRET_KEY: ${{ secrets.AUTHENTIK_SECRET_KEY }}
+      AUTHENTIK_DB_PASSWORD: ${{ secrets.AUTHENTIK_DB_PASSWORD }}
 
     steps:
       - name: Checkout code
@@ -50,3 +51,4 @@ jobs:
           sleep 10
           docker service ls
           docker service ps traefik_traefik --no-trunc
+          docker service ps traefik_authentik-server --no-trunc

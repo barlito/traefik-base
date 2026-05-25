@@ -25,6 +25,18 @@ http:
         customRequestHeaders:
           X-Local-Dev: "true"
 
+    # Authentik ForwardAuth — available for any service that needs SSO protection
+    authentik-auth:
+      forwardAuth:
+        address: http://authentik-server:9000/outpost.goauthentik.io/auth/traefik
+        trustForwardHeader: true
+        authResponseHeaders:
+          - X-authentik-username
+          - X-authentik-groups
+          - X-authentik-email
+          - X-authentik-uid
+          - X-authentik-jwt
+
   routers:
     # Global HTTP to HTTPS redirect
     http-catchall:
