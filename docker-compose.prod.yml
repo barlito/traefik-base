@@ -15,10 +15,7 @@ services:
       - TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL=${ACME_EMAIL}
     deploy:
       labels:
-        # Define basicauth middleware with environment variable
-        - traefik.http.middlewares.dashboard-auth.basicauth.users=${DASHBOARD_AUTH}
-        # Override dashboard router to use auth and Let's Encrypt
-        - traefik.http.routers.dashboard.middlewares=dashboard-auth@swarm,security-headers@file
+        - traefik.http.routers.dashboard.middlewares=authentik-auth@file,security-headers@file
         - traefik.http.routers.dashboard.tls.certresolver=letsencrypt
     configs:
       - source: traefik_static
@@ -31,6 +28,17 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - traefik-data:/etc/traefik
+
+  authentik-server:
+    deploy:
+      labels:
+        - traefik.http.routers.authentik.rule=Host(`auth.barlito.fr`)
+        - traefik.http.routers.authentik.entrypoints=http
+        - traefik.http.routers.authentik.middlewares=redirect-to-https@file
+        - traefik.http.routers.authentik-secure.rule=Host(`auth.barlito.fr`)
+        - traefik.http.routers.authentik-secure.entrypoints=https
+        - traefik.http.routers.authentik-secure.tls=true
+        - traefik.http.routers.authentik-secure.tls.certresolver=letsencrypt
 
 volumes:
   traefik-data:
