@@ -38,8 +38,6 @@ services:
       - ./authelia/users.local.yml:/config/users.yml:ro
     deploy:
       labels:
-        - traefik.http.routers.authelia.rule=Host(`auth.local.barlito.fr`)
-        - traefik.http.routers.authelia.entrypoints=http
         - traefik.http.routers.authelia-secure.rule=Host(`auth.local.barlito.fr`)
         - traefik.http.routers.authelia-secure.entrypoints=https
         - traefik.http.routers.authelia-secure.tls=true
