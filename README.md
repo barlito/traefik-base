@@ -7,7 +7,7 @@ Production-ready Traefik 3.0 setup with Docker Compose overrides for local/produ
 - 🚀 HTTP/3 support on port 8443 (works everywhere: Linux, WSL, Production)
 - 🔒 Automatic HTTP → HTTPS redirect
 - 🛡️ Security headers (HSTS, X-Frame-Options, CSP, etc.)
-- 🔐 Secure dashboard (auth in production only)
+- 🔐 Secure dashboard with Authelia (forwardAuth in production)
 - 📜 Let's Encrypt automatic certificates
 - 📊 Structured JSON logs to stdout (ready for Loki/Fluentd)
 - 🐧 **Auto-detection**: WSL vs Linux (automatic in `make deploy-local`)
@@ -45,7 +45,8 @@ Dashboard: https://traefik.local.barlito.fr (no authentication required)
 make deploy-prod
 ```
 
-Dashboard: https://traefik.barlito.fr (HTTP Basic authentication required)
+Dashboard: https://traefik.barlito.fr (Authelia authentication required)
+Authelia: https://auth.barlito.fr
 
 **Production uses Docker configs** - configs are transferred via Docker API, no file sync needed!
 
@@ -93,7 +94,9 @@ The Makefile automatically detects your environment and deploys the correct conf
 |----------|-------------|---------|
 | `ENV` | Environment (local/production) | `local` |
 | `DASHBOARD_HOST` | Dashboard domain | `traefik.barlito.fr` |
-| `DASHBOARD_AUTH` | HTTP Basic auth (prod only) | `admin:$apr1$...` |
+| `AUTHELIA_JWT_SECRET` | Authelia JWT signing secret | `openssl rand -base64 32` |
+| `AUTHELIA_SESSION_SECRET` | Authelia session encryption | `openssl rand -base64 32` |
+| `AUTHELIA_STORAGE_ENCRYPTION_KEY` | Authelia storage encryption | `openssl rand -base64 32` |
 | `ACME_EMAIL` | Let's Encrypt email (prod only) | `admin@example.com` |
 
 ### Configuration Files
@@ -120,7 +123,7 @@ The Makefile automatically detects your environment and deploys the correct conf
 
 Production deployment includes:
 
-- ✅ Dashboard protected with HTTP Basic authentication
+- ✅ Dashboard protected with Authelia (forwardAuth + TOTP/WebAuthn support)
 - ✅ Automatic HTTP → HTTPS redirect
 - ✅ Security headers (HSTS with preload, X-Frame-Options, etc.)
 - ✅ INFO log level (no verbose debug logs)
@@ -227,6 +230,10 @@ traefik-base/
 ├── traefik.prod.yml             # Production static config (INFO, Let's Encrypt)
 ├── traefik-dynamic.local.yml    # Local dynamic config (no auth)
 ├── traefik-dynamic.prod.yml     # Production dynamic config (with auth)
+├── authelia/                    # Authelia configuration
+│   ├── configuration.local.yml  # Local config (debug, local domain)
+│   ├── configuration.prod.yml   # Production config (info, prod domain)
+│   └── users.yml                # User database (password hash injected by CI)
 ├── Makefile                  # Deployment commands (auto-detects WSL/Linux)
 ├── certs/                    # Local certificates (mkcert)
 ├── docs/                     # Documentation
