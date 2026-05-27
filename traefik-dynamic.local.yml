@@ -25,6 +25,12 @@ http:
         customRequestHeaders:
           X-Local-Dev: "true"
 
+    # VPN-only access — restrict to WireGuard subnet (apply to routers with: vpn-only@file)
+    vpn-only:
+      ipAllowList:
+        sourceRange:
+          - "10.8.0.0/24"
+
     # Authelia ForwardAuth — available for any service that needs auth protection
     authelia-auth:
       forwardAuth:
@@ -37,6 +43,17 @@ http:
           - Remote-Email
 
   routers:
+    # WireGuard web UI (wg-easy runs outside Swarm, routed via file provider)
+    wg-easy-secure:
+      rule: "Host(`vpn.local.barlito.fr`)"
+      entryPoints:
+        - https
+      service: wg-easy
+      middlewares:
+        - authelia-auth
+        - security-headers
+      tls: {}
+
     # Global HTTP to HTTPS redirect
     http-catchall:
       rule: "PathPrefix(`/`)"
@@ -46,6 +63,12 @@ http:
         - redirect-to-https
       service: noop@internal
       priority: 1
+
+  services:
+    wg-easy:
+      loadBalancer:
+        servers:
+          - url: "http://wg-easy:51821"
 
 tls:
   certificates:
