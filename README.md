@@ -13,6 +13,7 @@ Production-ready Traefik 3.0 setup with Docker Compose overrides for local/produ
 - 🐧 **Auto-detection**: WSL vs Linux (automatic in `make deploy-local`)
 - 📦 **Docker Configs for prod** (no file sync needed!)
 - 🔧 **Bind mounts for local** (easy config editing)
+- 🔒 **WireGuard VPN** via wg-easy (web UI, QR codes, split tunnel)
 
 ## Quick Start
 
@@ -118,6 +119,67 @@ The Makefile automatically detects your environment and deploys the correct conf
 **Local**: Self-signed certificates using [mkcert](https://github.com/FiloSottile/mkcert)
 
 **Production**: Automatic Let's Encrypt via HTTP challenge
+
+## WireGuard VPN
+
+WireGuard VPN via [wg-easy](https://github.com/wg-easy/wg-easy) — web UI for client management and QR codes.
+
+> WireGuard runs as a standalone container (`docker compose`) because Docker Swarm does not support `cap_add`.
+
+### Setup
+
+```bash
+# 1. Set WG_HOST in .env.local (server public IP)
+# WG_HOST=51.68.154.52
+
+# 2. Start WireGuard
+make wireguard-up
+
+# 3. Open the web UI to create clients
+# https://vpn.barlito.fr (prod) / https://vpn.local.barlito.fr (local)
+```
+
+### Commands
+
+```bash
+make wireguard-up     # Start WireGuard
+make wireguard-down   # Stop WireGuard
+make wireguard-logs   # Follow logs
+```
+
+### Restrict a service to VPN only
+
+The `vpn-only@file` middleware restricts access to the WireGuard subnet (`10.8.0.0/24`).
+
+Add this label to the service's compose file:
+
+```yaml
+- traefik.http.routers.myservice-secure.middlewares=vpn-only@file,security-headers@file
+```
+
+Can be combined with Authelia (VPN + login):
+
+```yaml
+- traefik.http.routers.myservice-secure.middlewares=vpn-only@file,authelia-auth@file,security-headers@file
+```
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `WG_HOST` | Server public IP or domain (required) | - |
+| `WG_PORT` | WireGuard UDP port | `51820` |
+| `WG_DEFAULT_DNS` | DNS servers for clients | `1.1.1.1, 8.8.8.8` |
+| `WG_ALLOWED_IPS` | IPs routed through VPN | `0.0.0.0/0` (full tunnel) |
+| `WG_PERSISTENT_KEEPALIVE` | Keepalive interval (seconds) | `25` |
+
+### Split Tunnel
+
+By default, all client traffic goes through the VPN (`0.0.0.0/0`). To only route traffic to the server (split tunnel), edit `AllowedIPs` in the client config:
+
+```ini
+AllowedIPs = 10.8.0.0/24, <SERVER_PUBLIC_IP>/32
+```
 
 ## Security
 
@@ -226,6 +288,7 @@ traefik-base/
 ├── docker-compose.local.yml     # Local override for Linux (bind mounts, HTTP/3)
 ├── docker-compose.wsl.yml       # Local override for WSL (bind mounts, no HTTP/3)
 ├── docker-compose.prod.yml      # Production override (Docker configs)
+├── docker-compose.wireguard.yml # WireGuard VPN (standalone, docker compose)
 ├── traefik.local.yml            # Local static config (DEBUG, no Let's Encrypt)
 ├── traefik.prod.yml             # Production static config (INFO, Let's Encrypt)
 ├── traefik-dynamic.local.yml    # Local dynamic config (no auth)

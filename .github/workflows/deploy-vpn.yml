@@ -1,0 +1,32 @@
+name: Deploy WireGuard VPN
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      DOCKER_HOST: ssh://${{ vars.SERVER_USERNAME }}@${{ vars.SERVER_HOST }}:${{ vars.SERVER_PORT }}
+      WG_HOST: ${{ vars.SERVER_HOST }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy WireGuard
+        run: docker compose -f docker-compose.wireguard.yml up -d
+
+      - name: Verify Deployment
+        run: docker ps --filter name=wg-easy --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
