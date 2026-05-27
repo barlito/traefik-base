@@ -5,6 +5,9 @@
 .env.local
 .env.production
 
+# Generated Authelia users (contains password hash)
+authelia/users.local.yml
+
 # Logs
 logs/
 *.log

@@ -17,8 +17,10 @@ jobs:
       DOCKER_HOST: ssh://${{ vars.SERVER_USERNAME }}@${{ vars.SERVER_HOST }}:${{ vars.SERVER_PORT }}
       DASHBOARD_HOST: ${{ secrets.DASHBOARD_HOST }}
       ACME_EMAIL: ${{ secrets.ACME_EMAIL }}
-      AUTHENTIK_SECRET_KEY: ${{ secrets.AUTHENTIK_SECRET_KEY }}
-      AUTHENTIK_DB_PASSWORD: ${{ secrets.AUTHENTIK_DB_PASSWORD }}
+      AUTHELIA_JWT_SECRET: ${{ secrets.AUTHELIA_JWT_SECRET }}
+      AUTHELIA_SESSION_SECRET: ${{ secrets.AUTHELIA_SESSION_SECRET }}
+      AUTHELIA_STORAGE_ENCRYPTION_KEY: ${{ secrets.AUTHELIA_STORAGE_ENCRYPTION_KEY }}
+      AUTHELIA_USER_PASSWORD_HASH: ${{ secrets.AUTHELIA_USER_PASSWORD_HASH }}
 
     steps:
       - name: Checkout code
@@ -33,6 +35,9 @@ jobs:
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Generate Authelia users file
+        run: sed -i "s|\$AUTHELIA_USER_PASSWORD_HASH|${AUTHELIA_USER_PASSWORD_HASH}|" authelia/users.yml
 
       - name: Undeploy Stack (if restart requested)
         if: ${{ inputs.undeploy == true }}
@@ -51,4 +56,4 @@ jobs:
           sleep 10
           docker service ls
           docker service ps traefik_traefik --no-trunc
-          docker service ps traefik_authentik-server --no-trunc
+          docker service ps traefik_authelia --no-trunc

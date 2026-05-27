@@ -28,66 +28,26 @@ services:
     networks:
       - traefik_proxy
 
-  authentik-server:
-    image: ghcr.io/goauthentik/server:2025.12
-    command: server
+  authelia:
+    image: authelia/authelia:4
     environment:
-      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
-      AUTHENTIK_POSTGRESQL__HOST: authentik-postgres
-      AUTHENTIK_POSTGRESQL__USER: authentik
-      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD}
-      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHELIA_JWT_SECRET: ${AUTHELIA_JWT_SECRET}
+      AUTHELIA_SESSION_SECRET: ${AUTHELIA_SESSION_SECRET}
+      AUTHELIA_STORAGE_ENCRYPTION_KEY: ${AUTHELIA_STORAGE_ENCRYPTION_KEY}
     volumes:
-      - authentik_media:/media
-      - authentik_templates:/templates
+      - authelia_data:/data
     deploy:
       labels:
         - traefik.enable=true
-        - traefik.http.services.authentik.loadbalancer.server.port=9000
+        - traefik.http.services.authelia.loadbalancer.server.port=9091
     networks:
       - traefik_proxy
-      - authentik_internal
-
-  authentik-worker:
-    image: ghcr.io/goauthentik/server:2025.12
-    command: worker
-    environment:
-      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
-      AUTHENTIK_POSTGRESQL__HOST: authentik-postgres
-      AUTHENTIK_POSTGRESQL__USER: authentik
-      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD}
-      AUTHENTIK_POSTGRESQL__NAME: authentik
-    volumes:
-      - authentik_media:/media
-      - authentik_templates:/templates
-    networks:
-      - authentik_internal
-
-  authentik-postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: authentik
-      POSTGRES_PASSWORD: ${AUTHENTIK_DB_PASSWORD}
-      POSTGRES_DB: authentik
-    volumes:
-      - authentik_db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U authentik"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - authentik_internal
 
 volumes:
-  authentik_db_data:
-  authentik_media:
-  authentik_templates:
+  authelia_data:
 
 networks:
   traefik_proxy:
     driver: overlay
     attachable: true
-  authentik_internal:
-    driver: overlay
 

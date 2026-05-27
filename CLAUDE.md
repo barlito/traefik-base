@@ -13,6 +13,7 @@ This is a production-ready Traefik 3.0 reverse proxy setup using Docker Swarm wi
 3. **HTTP/3 on alternative port**: Port 444/UDP for HTTP/3 instead of 443/UDP due to Docker Swarm limitation (cannot publish TCP+UDP on same port)
 4. **Production uses Docker configs**: Config files transferred via Docker API, no rsync needed
 5. **Local uses bind mounts**: Direct file mounting for easy development iteration
+6. **Authelia for auth**: Lightweight forwardAuth via Traefik to protect services without native auth (dashboard, tools). File-based users (`authelia/users.yml`), password hash injected from GitHub secret at deploy time. Supports TOTP/WebAuthn as second factor.
 
 ## Common Commands
 
