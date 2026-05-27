@@ -7,6 +7,10 @@ configs:
     file: ./traefik.prod.yml
   traefik_dynamic:
     file: ./traefik-dynamic.prod.yml
+  authelia_config:
+    file: ./authelia/configuration.prod.yml
+  authelia_users:
+    file: ./authelia/users.yml
 
 services:
   traefik:
@@ -15,7 +19,7 @@ services:
       - TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL=${ACME_EMAIL}
     deploy:
       labels:
-        - traefik.http.routers.dashboard.middlewares=authentik-auth@file,security-headers@file
+        - traefik.http.routers.dashboard.middlewares=authelia-auth@file,security-headers@file
         - traefik.http.routers.dashboard.tls.certresolver=letsencrypt
     configs:
       - source: traefik_static
@@ -29,16 +33,23 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - traefik-data:/etc/traefik
 
-  authentik-server:
+  authelia:
+    configs:
+      - source: authelia_config
+        target: /config/configuration.yml
+        mode: 0444
+      - source: authelia_users
+        target: /config/users.yml
+        mode: 0444
     deploy:
       labels:
-        - traefik.http.routers.authentik.rule=Host(`auth.barlito.fr`)
-        - traefik.http.routers.authentik.entrypoints=http
-        - traefik.http.routers.authentik.middlewares=redirect-to-https@file
-        - traefik.http.routers.authentik-secure.rule=Host(`auth.barlito.fr`)
-        - traefik.http.routers.authentik-secure.entrypoints=https
-        - traefik.http.routers.authentik-secure.tls=true
-        - traefik.http.routers.authentik-secure.tls.certresolver=letsencrypt
+        - traefik.http.routers.authelia.rule=Host(`auth.barlito.fr`)
+        - traefik.http.routers.authelia.entrypoints=http
+        - traefik.http.routers.authelia.middlewares=redirect-to-https@file
+        - traefik.http.routers.authelia-secure.rule=Host(`auth.barlito.fr`)
+        - traefik.http.routers.authelia-secure.entrypoints=https
+        - traefik.http.routers.authelia-secure.tls=true
+        - traefik.http.routers.authelia-secure.tls.certresolver=letsencrypt
 
 volumes:
   traefik-data:

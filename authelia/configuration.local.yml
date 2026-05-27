@@ -1,0 +1,32 @@
+server:
+  address: 'tcp://0.0.0.0:9091/'
+
+log:
+  level: debug
+
+authentication_backend:
+  file:
+    path: /config/users.yml
+
+session:
+  cookies:
+    - domain: 'local.barlito.fr'
+      authelia_url: 'https://auth.local.barlito.fr'
+      default_redirection_url: 'https://traefik.local.barlito.fr'
+
+storage:
+  local:
+    path: /data/db.sqlite3
+
+access_control:
+  default_policy: deny
+  rules:
+    - domain: '*.local.barlito.fr'
+      policy: one_factor
+
+notifier:
+  filesystem:
+    filename: /data/notification.txt
+
+totp:
+  issuer: 'barlito.fr'

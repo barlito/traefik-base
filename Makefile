@@ -32,7 +32,7 @@ ifeq ($(IS_WSL),true)
 		docker stack deploy -c docker-compose.yml -c docker-compose.wsl.yml $(stack_name)
 	@echo "✅ Deployed!"
 	@echo "📊 Dashboard: https://traefik.local.barlito.fr"
-	@echo "🔐 Authentik: https://auth.local.barlito.fr"
+	@echo "🔐 Authelia: https://auth.local.barlito.fr"
 	@echo "ℹ️  HTTP/3 disabled (WSL limitation)"
 else
 	@echo "📦 Deploying Traefik (local on Linux - with HTTP/3)..."
@@ -44,7 +44,7 @@ else
 		docker stack deploy -c docker-compose.yml -c docker-compose.local.yml $(stack_name)
 	@echo "✅ Deployed!"
 	@echo "📊 Dashboard: https://traefik.local.barlito.fr"
-	@echo "🔐 Authentik: https://auth.local.barlito.fr"
+	@echo "🔐 Authelia: https://auth.local.barlito.fr"
 	@echo "✅ HTTP/3 enabled on port 443/UDP"
 endif
 
@@ -54,7 +54,7 @@ deploy-prod:
 	@docker stack deploy -c docker-compose.yml -c docker-compose.prod.yml $(stack_name)
 	@echo "✅ Deployed!"
 	@echo "📊 Dashboard: https://$$DASHBOARD_HOST"
-	@echo "🔐 Authentik: https://auth.barlito.fr"
+	@echo "🔐 Authelia: https://auth.barlito.fr"
 
 .PHONY: undeploy
 undeploy:

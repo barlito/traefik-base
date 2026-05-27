@@ -1,0 +1,8 @@
+users:
+  barlito:
+    displayname: 'Barlito'
+    # Generate with: docker run --rm authelia/authelia:4 crypto hash generate argon2 --password 'your-password'
+    password: '$argon2id$v=19$m=65536,t=3,p=4$CHANGE_ME'
+    email: axelbarlet98@gmail.com
+    groups:
+      - admins

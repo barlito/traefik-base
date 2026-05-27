@@ -17,8 +17,9 @@ jobs:
       DOCKER_HOST: ssh://${{ vars.SERVER_USERNAME }}@${{ vars.SERVER_HOST }}:${{ vars.SERVER_PORT }}
       DASHBOARD_HOST: ${{ secrets.DASHBOARD_HOST }}
       ACME_EMAIL: ${{ secrets.ACME_EMAIL }}
-      AUTHENTIK_SECRET_KEY: ${{ secrets.AUTHENTIK_SECRET_KEY }}
-      AUTHENTIK_DB_PASSWORD: ${{ secrets.AUTHENTIK_DB_PASSWORD }}
+      AUTHELIA_JWT_SECRET: ${{ secrets.AUTHELIA_JWT_SECRET }}
+      AUTHELIA_SESSION_SECRET: ${{ secrets.AUTHELIA_SESSION_SECRET }}
+      AUTHELIA_STORAGE_ENCRYPTION_KEY: ${{ secrets.AUTHELIA_STORAGE_ENCRYPTION_KEY }}
 
     steps:
       - name: Checkout code
@@ -51,4 +52,4 @@ jobs:
           sleep 10
           docker service ls
           docker service ps traefik_traefik --no-trunc
-          docker service ps traefik_authentik-server --no-trunc
+          docker service ps traefik_authelia --no-trunc
