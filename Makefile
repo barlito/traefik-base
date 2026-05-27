@@ -29,6 +29,7 @@ ifeq ($(IS_WSL),true)
 		cp .env.example .env.local; \
 	fi
 	@set -a && . ./.env.local && set +a && \
+		sed "s|\$$AUTHELIA_USER_PASSWORD_HASH|$$AUTHELIA_USER_PASSWORD_HASH|" authelia/users.yml > authelia/users.local.yml && \
 		docker stack deploy -c docker-compose.yml -c docker-compose.wsl.yml $(stack_name)
 	@echo "✅ Deployed!"
 	@echo "📊 Dashboard: https://traefik.local.barlito.fr"
@@ -41,6 +42,7 @@ else
 		cp .env.example .env.local; \
 	fi
 	@set -a && . ./.env.local && set +a && \
+		sed "s|\$$AUTHELIA_USER_PASSWORD_HASH|$$AUTHELIA_USER_PASSWORD_HASH|" authelia/users.yml > authelia/users.local.yml && \
 		docker stack deploy -c docker-compose.yml -c docker-compose.local.yml $(stack_name)
 	@echo "✅ Deployed!"
 	@echo "📊 Dashboard: https://traefik.local.barlito.fr"

@@ -18,7 +18,7 @@ services:
   authelia:
     volumes:
       - ./authelia/configuration.local.yml:/config/configuration.yml:ro
-      - ./authelia/users.yml:/config/users.yml:ro
+      - ./authelia/users.local.yml:/config/users.yml:ro
     deploy:
       labels:
         - traefik.http.routers.authelia.rule=Host(`auth.local.barlito.fr`)
