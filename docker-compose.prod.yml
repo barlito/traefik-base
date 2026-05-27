@@ -43,9 +43,6 @@ services:
         mode: 0444
     deploy:
       labels:
-        - traefik.http.routers.authelia.rule=Host(`auth.barlito.fr`)
-        - traefik.http.routers.authelia.entrypoints=http
-        - traefik.http.routers.authelia.middlewares=redirect-to-https@file
         - traefik.http.routers.authelia-secure.rule=Host(`auth.barlito.fr`)
         - traefik.http.routers.authelia-secure.entrypoints=https
         - traefik.http.routers.authelia-secure.tls=true
