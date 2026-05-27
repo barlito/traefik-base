@@ -1,7 +1,7 @@
 users:
   barlito:
     displayname: 'Barlito'
-    # Generate hash: docker run --rm authelia/authelia:4 crypto hash generate argon2 --password 'your-password'
+    # Generate hash: docker run --rm authelia/authelia:4 authelia crypto hash generate argon2 --password 'your-password'
     # In prod, $AUTHELIA_USER_PASSWORD_HASH is replaced by the CI workflow from a GitHub secret
     password: '$AUTHELIA_USER_PASSWORD_HASH'
     email: axelbarlet98@gmail.com

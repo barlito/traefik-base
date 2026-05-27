@@ -28,7 +28,7 @@ fi
 
 echo ""
 echo "Generating password hash (this may take a moment)..."
-PASSWORD_HASH=$(docker run --rm authelia/authelia:4 crypto hash generate argon2 --password "$auth_password" 2>/dev/null | grep 'Digest:' | awk '{print $2}')
+PASSWORD_HASH=$(docker run --rm authelia/authelia:4 authelia crypto hash generate argon2 --password "$auth_password" 2>/dev/null | grep 'Digest:' | awk '{print $2}')
 
 if [ -z "$PASSWORD_HASH" ]; then
     echo "Failed to generate password hash. Make sure Docker is running."
