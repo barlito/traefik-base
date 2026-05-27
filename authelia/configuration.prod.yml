@@ -22,7 +22,7 @@ access_control:
   default_policy: deny
   rules:
     - domain: '*.barlito.fr'
-      policy: one_factor
+      policy: two_factor
 
 notifier:
   filesystem:
