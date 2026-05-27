@@ -12,6 +12,9 @@ help:
 	@echo "  make deploy-prod     - Deploy production (Docker configs, Let's Encrypt)"
 	@echo "  make undeploy        - Remove the stack"
 	@echo "  make logs            - Follow traefik logs (via docker service logs)"
+	@echo "  make wireguard-up    - Start WireGuard VPN (standalone container)"
+	@echo "  make wireguard-down  - Stop WireGuard VPN"
+	@echo "  make wireguard-logs  - Follow WireGuard logs"
 	@echo ""
 ifeq ($(IS_WSL),true)
 	@echo "🔍 WSL detected - will use docker-compose.wsl.yml (no HTTP/3)"
@@ -63,6 +66,29 @@ undeploy:
 	@echo "🗑️  Removing Traefik stack..."
 	@docker stack rm $(stack_name) || true
 	@echo "✅ Stack removed (network may remain if used by other services)!"
+
+.PHONY: wireguard-up
+wireguard-up:
+	@echo "🔐 Starting WireGuard VPN..."
+	@if [ -f .env.local ]; then \
+		set -a && . ./.env.local && set +a && \
+		docker compose -f docker-compose.wireguard.yml up -d; \
+	else \
+		docker compose -f docker-compose.wireguard.yml up -d; \
+	fi
+	@echo "✅ WireGuard running!"
+	@echo "🌐 Web UI: https://vpn.local.barlito.fr (local) or https://vpn.barlito.fr (prod)"
+	@echo "📱 Add clients from the web UI"
+
+.PHONY: wireguard-down
+wireguard-down:
+	@echo "🗑️  Stopping WireGuard VPN..."
+	@docker compose -f docker-compose.wireguard.yml down
+	@echo "✅ WireGuard stopped!"
+
+.PHONY: wireguard-logs
+wireguard-logs:
+	@docker compose -f docker-compose.wireguard.yml logs -f
 
 .PHONY: logs
 logs:

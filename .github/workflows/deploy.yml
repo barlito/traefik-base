@@ -21,6 +21,7 @@ jobs:
       AUTHELIA_SESSION_SECRET: ${{ secrets.AUTHELIA_SESSION_SECRET }}
       AUTHELIA_STORAGE_ENCRYPTION_KEY: ${{ secrets.AUTHELIA_STORAGE_ENCRYPTION_KEY }}
       AUTHELIA_USER_PASSWORD_HASH: ${{ secrets.AUTHELIA_USER_PASSWORD_HASH }}
+      WG_HOST: ${{ vars.SERVER_HOST }}
 
     steps:
       - name: Checkout code
@@ -50,6 +51,9 @@ jobs:
       - name: Deploy Stack
         run: make deploy-prod
 
+      - name: Deploy WireGuard
+        run: docker compose -f docker-compose.wireguard.yml up -d
+
       - name: Verify Deployment
         run: |
           echo "⏳ Waiting for service to be ready..."
@@ -57,3 +61,4 @@ jobs:
           docker service ls
           docker service ps traefik_traefik --no-trunc
           docker service ps traefik_authelia --no-trunc
+          docker ps --filter name=wg-easy --format "table {{.Names}}\t{{.Status}}"
