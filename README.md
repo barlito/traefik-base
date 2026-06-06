@@ -221,17 +221,7 @@ make logs
 docker service logs -f traefik_traefik
 ```
 
-**For centralized logging**, configure Docker logging driver to send to Loki, Fluentd, or other log aggregators:
-
-```yaml
-# In docker-compose.yml
-services:
-  traefik:
-    logging:
-      driver: loki
-      options:
-        loki-url: "http://loki:3100/loki/api/v1/push"
-```
+**For centralized logging**, no configuration is needed: the [observability-stack](https://github.com/barlito/observability-stack) runs an Alloy agent on each node that discovers every container through the Docker socket and ships stdout/stderr to Loki automatically. Logs are queryable in Grafana with labels `container`, `service` and `stack` (e.g. `{service="traefik_traefik"}`).
 
 ### Metrics
 
