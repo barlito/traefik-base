@@ -116,7 +116,22 @@ The Makefile automatically detects your environment and deploys the correct conf
 
 ### Certificates
 
-**Local**: Self-signed certificates using [mkcert](https://github.com/FiloSottile/mkcert)
+**Local**: Real Let's Encrypt wildcard for `*.local.barlito.fr` via **DNS-01** (OVH), with [mkcert](https://github.com/FiloSottile/mkcert) self-signed as fallback.
+
+DNS-01 validates ownership through a TXT record created via the OVH API, so it works even though `*.local.barlito.fr` resolves to `127.0.0.1` — the domain never needs to be publicly reachable. The cert resolver is declared at the `https` entrypoint level in `traefik.local.yml`: every local project gets the wildcard automatically, no TLS labels needed.
+
+```bash
+# 1. Create an OVH API token: https://eu.api.ovh.com/createToken
+#    Rights: GET + POST + DELETE on /domain/zone/*
+# 2. Fill OVH_* variables in .env.local (see .env.example)
+# 3. Redeploy
+make deploy-local
+```
+
+**FAQ — do I always need the OVH creds?**
+- The ACME TXT record is *temporary* (created and deleted at each challenge), so the creds are needed at **first issuance and at every renewal** (~every 60 days, certs last 90). Keep them in `.env.local`.
+- **Another of your machines**: copy the same `.env.local` (the token is not tied to a machine).
+- **Someone else running this stack**: without your creds, Traefik logs ACME errors and serves the mkcert/self-signed fallback — everything works, just without trusted certs. Don't share the token (it grants write access to the DNS zone); they should use their own domain/creds.
 
 **Production**: Automatic Let's Encrypt via HTTP challenge
 
@@ -169,9 +184,28 @@ Can be combined with Authelia (VPN + login):
 |----------|-------------|---------|
 | `WG_HOST` | Server public IP or domain (required) | - |
 | `WG_PORT` | WireGuard UDP port | `51820` |
-| `WG_DEFAULT_DNS` | DNS servers for clients | `1.1.1.1, 8.8.8.8` |
+| `WG_DEFAULT_DNS` | DNS servers for clients (`10.8.0.1` = wg-dns sidecar) | `1.1.1.1, 8.8.8.8` |
 | `WG_ALLOWED_IPS` | IPs routed through VPN | `0.0.0.0/0` (full tunnel) |
 | `WG_PERSISTENT_KEEPALIVE` | Keepalive interval (seconds) | `25` |
+| `WG_LOCAL_TARGET_IP` | IP answered for `*.local.barlito.fr` by wg-dns | `172.18.0.1` (docker_gwbridge) |
+| `WG_DNS_UPSTREAM` | Upstream resolver for everything else | `1.1.1.1` |
+
+### Access local dev sites from your phone (wg-dns)
+
+`*.local.barlito.fr` publicly resolves to `127.0.0.1` (each dev machine reaches itself). For a phone or laptop connected through WireGuard, the `wg-dns` sidecar (dnsmasq sharing wg-easy's network namespace, listening on `10.8.0.1`) overrides that: it answers `*.local.barlito.fr` with `WG_LOCAL_TARGET_IP` and forwards everything else upstream. Public DNS is untouched.
+
+`WG_LOCAL_TARGET_IP` depends on where wg-easy runs:
+
+- **wg-easy on the dev machine itself**: keep the default `172.18.0.1` (docker_gwbridge gateway → the host-published 80/443 of the local Traefik).
+- **wg-easy hosted on the prod server** (`deploy-vpn.yml`): set it to the WireGuard IP of the **dev machine's client profile** (e.g. `10.8.0.2`). The phone reaches the dev machine client-to-client through the server (`FORWARD` on `wg0` is already allowed), so the dev machine must keep its own VPN session up.
+
+```bash
+# 1. In .env.local: WG_DEFAULT_DNS=10.8.0.1  (and WG_LOCAL_TARGET_IP, see above)
+# 2. make wireguard-up
+# 3. Re-create the phone's client profile in the wg-easy UI (DNS is baked into the profile)
+```
+
+The phone then browses `https://doghelp.local.barlito.fr` through the tunnel, with the wildcard cert. Combined with the DNS-01 wildcard above: green padlock everywhere, nothing exposed to the internet.
 
 ### Split Tunnel
 
