@@ -32,6 +32,36 @@ services:
     networks:
       - traefik_traefik_proxy
 
+  # DNS resolver for VPN clients: answers *.local.barlito.fr with the dev
+  # machine's IP so the phone reaches the local Traefik through the tunnel,
+  # and forwards everything else upstream. Clients use it via
+  # WG_DEFAULT_DNS=10.8.0.1 (see .env.example).
+  wg-dns:
+    image: dockurr/dnsmasq
+    container_name: wg-dns
+    # Shares wg-easy's network namespace: dnsmasq listens directly on wg0
+    # (10.8.0.1), no extra IP for clients to know.
+    network_mode: service:wg-easy
+    # The image's default entrypoint reads a config file; run dnsmasq with
+    # flags instead.
+    entrypoint:
+      - dnsmasq
+      - --keep-in-foreground
+      - --log-facility=-
+      - --no-resolv
+      # Bind per-interface (wg0 appears after startup) without clashing with
+      # Docker's embedded DNS on 127.0.0.11.
+      - --bind-dynamic
+      - --except-interface=lo
+      # *.local.barlito.fr → where VPN clients can reach the local Traefik:
+      # docker_gwbridge gateway by default (works on WSL and native Linux);
+      # set WG_LOCAL_TARGET_IP to the machine's LAN IP to also serve LAN peers.
+      - --address=/local.barlito.fr/${WG_LOCAL_TARGET_IP:-172.18.0.1}
+      - --server=${WG_DNS_UPSTREAM:-1.1.1.1}
+    depends_on:
+      - wg-easy
+    restart: unless-stopped
+
 volumes:
   wg-easy_data:
 

@@ -13,6 +13,29 @@ entryPoints:
       maxConcurrentStreams: 250
     http3:
       advertisedPort: 444  # Announce HTTP/3 on external port 444 (<1024 for Chrome Alt-Svc)
+    http:
+      tls:
+        # Default TLS for every router on this entrypoint: one Let's Encrypt
+        # wildcard covers all local projects, no TLS labels needed per project.
+        certResolver: letsencrypt-dns
+        domains:
+          - main: local.barlito.fr
+            sans:
+              - "*.local.barlito.fr"
+
+# Wildcard cert for *.local.barlito.fr via DNS-01: Let's Encrypt validates a TXT
+# record through the OVH API (creds in .env.local), so it works even though the
+# domain resolves to 127.0.0.1. Without OVH creds Traefik logs ACME errors and
+# falls back to the mkcert default cert from the dynamic config — the stack
+# still works, just without trusted certs.
+certificatesResolvers:
+  letsencrypt-dns:
+    acme:
+      email: axelbarlet98@gmail.com
+      # Lives in the traefik-data volume (mounted at /etc/traefik)
+      storage: /etc/traefik/acme-local.json
+      dnsChallenge:
+        provider: ovh
 
 global:
   sendAnonymousUsage: false
