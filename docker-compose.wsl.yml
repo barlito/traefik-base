@@ -6,6 +6,12 @@ services:
   traefik:
     environment:
       - ENV=local
+      # OVH API creds for the DNS-01 wildcard cert (*.local.barlito.fr).
+      # Optional: without them Traefik falls back to the mkcert default cert.
+      - OVH_ENDPOINT=${OVH_ENDPOINT:-ovh-eu}
+      - OVH_APPLICATION_KEY=${OVH_APPLICATION_KEY:-}
+      - OVH_APPLICATION_SECRET=${OVH_APPLICATION_SECRET:-}
+      - OVH_CONSUMER_KEY=${OVH_CONSUMER_KEY:-}
     ports:
       # Use mode: host for WSL
       - target: 80
