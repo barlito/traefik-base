@@ -11,6 +11,7 @@ authentication_backend:
 session:
   cookies:
     - domain: 'local.barlito.fr'
+      name: 'authelia_session_local'
       authelia_url: 'https://auth.local.barlito.fr'
       default_redirection_url: 'https://traefik.local.barlito.fr'
 
@@ -22,7 +23,7 @@ access_control:
   default_policy: deny
   rules:
     - domain: '*.local.barlito.fr'
-      policy: two_factor
+      policy: one_factor
 
 notifier:
   filesystem:
