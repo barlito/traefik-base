@@ -48,7 +48,9 @@ accessLog:
 
 providers:
   swarm:
-    endpoint: unix:///var/run/docker.sock
+    # Reach the Swarm API through the read-only docker-socket-proxy instead of
+    # the raw socket (which is no longer mounted into this container).
+    endpoint: tcp://dockerproxy:2375
     exposedByDefault: false
     watch: true
     network: traefik_traefik_proxy
