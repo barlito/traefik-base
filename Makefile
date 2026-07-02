@@ -56,7 +56,8 @@ endif
 .PHONY: deploy-prod
 deploy-prod:
 	@echo "🚀 Deploying Traefik (production)..."
-	@docker stack deploy -c docker-compose.yml -c docker-compose.prod.yml $(stack_name)
+	@export CONFIG_VERSION=$$(cat traefik.prod.yml traefik-dynamic.prod.yml authelia/configuration.prod.yml authelia/users.yml | sha1sum | cut -c1-10) && \
+		docker stack deploy -c docker-compose.yml -c docker-compose.prod.yml $(stack_name)
 	@echo "✅ Deployed!"
 	@echo "📊 Dashboard: https://$$DASHBOARD_HOST"
 	@echo "🔐 Authelia: https://auth.barlito.fr"

@@ -2,15 +2,23 @@ version: "3.8"
 
 # Production override - uses Docker configs (no rsync needed!)
 
+# Config names are suffixed with CONFIG_VERSION (a hash of the config files,
+# computed in `make deploy-prod`). Any content change yields a new config
+# object, so Swarm does a rolling update instead of failing with
+# "only updates to Labels are allowed" (Docker configs are immutable).
 configs:
   traefik_static:
     file: ./traefik.prod.yml
+    name: traefik_static_${CONFIG_VERSION:-dev}
   traefik_dynamic:
     file: ./traefik-dynamic.prod.yml
+    name: traefik_dynamic_${CONFIG_VERSION:-dev}
   authelia_config:
     file: ./authelia/configuration.prod.yml
+    name: authelia_config_${CONFIG_VERSION:-dev}
   authelia_users:
     file: ./authelia/users.yml
+    name: authelia_users_${CONFIG_VERSION:-dev}
 
 services:
   traefik:
