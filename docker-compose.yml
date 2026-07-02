@@ -28,6 +28,37 @@ services:
     networks:
       - traefik_proxy
 
+  # Read-only Docker/Swarm API proxy in front of the raw socket. Traefik's
+  # Swarm provider talks to this over TCP (tcp://dockerproxy:2375) instead of
+  # bind-mounting /var/run/docker.sock (a :ro socket mount does NOT restrict
+  # the API). Only the read endpoints Traefik needs to discover routers are
+  # whitelisted and every write is refused (POST=0). Pinned to a manager node
+  # (the Swarm API requires a manager); it is the only service that touches
+  # the real socket.
+  dockerproxy:
+    image: ghcr.io/tecnativa/docker-socket-proxy:latest
+    environment:
+      # Endpoints Traefik's Swarm provider reads to build the routing table
+      - SWARM=1        # /swarm
+      - SERVICES=1     # /services (labels/routers live here)
+      - TASKS=1        # /tasks (running replicas -> load-balancer targets)
+      - NODES=1        # /nodes
+      - NETWORKS=1     # /networks (resolve the provider network)
+      - ENDPOINTS=1    # service virtual IPs
+      - CONTAINERS=1   # container-level discovery
+      - INFO=1         # /info (engine/swarm metadata)
+      - EVENTS=1       # event stream to watch for changes
+      - POST=0         # reject every write/mutating call
+      - LOG_LEVEL=warning
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+    networks:
+      - traefik_proxy
+
   authelia:
     image: authelia/authelia:4
     environment:

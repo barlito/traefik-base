@@ -9,7 +9,8 @@ services:
       - ENV=local
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Docker socket is no longer mounted here; Traefik reaches the Swarm API
+      # via tcp://dockerproxy:2375 (see the dockerproxy service).
       - ./traefik.local.yml:/etc/traefik/traefik.yml:ro
       - ./traefik-dynamic.local.yml:/etc/traefik/dynamic/config.yml:ro
       - ./certs:/etc/certs:ro
