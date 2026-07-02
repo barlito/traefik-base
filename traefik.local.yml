@@ -13,6 +13,16 @@ entryPoints:
       maxConcurrentStreams: 250
     http3:
       advertisedPort: 444  # Announce HTTP/3 on external port 444 (<1024 for Chrome Alt-Svc)
+  # Internal-only entrypoint for Prometheus metrics (not published to the host)
+  metrics:
+    address: :8082
+
+metrics:
+  prometheus:
+    entryPoint: metrics
+    addEntryPointsLabels: true
+    addRoutersLabels: true
+    addServicesLabels: true
 
 global:
   sendAnonymousUsage: false
