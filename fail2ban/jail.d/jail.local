@@ -1,0 +1,73 @@
+# All fail2ban jails + global policy in a single file (baked into the image).
+# The only companion file is filter.d/traefik-badbots.conf (the JSON filter for
+# the Traefik access log — a filter must live in its own file).
+
+[DEFAULT]
+# --- Ban policy -------------------------------------------------------------
+bantime  = 1h
+findtime = 10m
+maxretry = 5
+
+# Escalate repeat offenders: each new ban of the same IP lasts factor x longer,
+# capped at 1 MONTH. A persistent scanner ends up banned for a long time.
+bantime.increment = true
+bantime.factor    = 2
+bantime.maxtime   = 30d
+
+# --- Ban action: blackhole via the routing table ---------------------------
+# `route` runs `ip route add unreachable <ip>` in the HOST network namespace
+# (this container is network_mode: host + NET_ADMIN). It drops the IP at the
+# routing layer, upstream of the iptables/Docker DNAT path, so ONE ban covers
+# host processes (sshd) AND containerised services (Traefik, game servers).
+# Trade-off: all-or-nothing per IP (no per-port granularity) — exactly what we
+# want for "ban everything".
+banaction          = route
+banaction_allports = route
+
+# --- Never ban ourselves ----------------------------------------------------
+# localhost + the WireGuard subnet (VPN clients must not lock themselves out).
+# Add your static home/office IP here if you have one.
+ignoreip = 127.0.0.1/8 ::1 10.8.0.0/24
+
+
+# --- SSH brute-force --------------------------------------------------------
+[sshd]
+enabled  = true
+port     = ssh
+maxretry = 4
+bantime  = 1h
+# Debian/Ubuntu + rsyslog (the OVH host) writes SSH auth to /var/log/auth.log,
+# mounted read-only. On a journald-only host, set `backend = systemd` instead
+# (the /var/log mount already exposes the journal).
+backend  = auto
+logpath  = /var/log/auth.log
+
+
+# --- HTTP scanners (Traefik) ------------------------------------------------
+# Bans IPs producing a burst of 4xx (probing /.env, /.git, /actuator, wp-*, ...).
+# Traefik logs only 400-599 (accessLog.filters), and the filter targets 4xx
+# only (never our own 5xx). 12 errors within 1 min: a logged-out human hitting
+# a few 401s won't trip it; a scanner doing dozens/min will.
+# NOTE: the access log is JSON — validate the filter with `make fail2ban-test`.
+[traefik-badbots]
+enabled  = true
+filter   = traefik-badbots
+logpath  = /var/log/traefik/access.log
+maxretry = 12
+findtime = 1m
+bantime  = 6h
+
+
+# --- Game server template (DISABLED) ----------------------------------------
+# No game server in this stack yet. To activate for e.g. Minecraft: create
+# filter.d/minecraft.conf, mount the server log into the fail2ban container
+# (docker-compose.fail2ban.yml), set enabled = true and fix logpath, then
+# `make fail2ban-test`. The blackhole action already covers TCP/UDP game
+# traffic, so no per-jail action is needed.
+#[minecraft]
+#enabled  = false
+#filter   = minecraft
+#logpath  = /var/log/minecraft/latest.log
+#maxretry = 6
+#findtime = 5m
+#bantime  = 1h

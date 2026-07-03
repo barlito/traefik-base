@@ -41,6 +41,9 @@ services:
       # Docker socket is no longer mounted here; Traefik reaches the Swarm API
       # via tcp://dockerproxy:2375 (see the dockerproxy service).
       - traefik-data:/etc/traefik
+      # Access log written here (accessLog.filePath) and tailed by the
+      # standalone fail2ban container. Host bind mount on the manager node.
+      - /var/log/traefik:/var/log/traefik
 
   authelia:
     configs:

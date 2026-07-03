@@ -15,6 +15,12 @@ help:
 	@echo "  make wireguard-up    - Start WireGuard VPN (standalone container)"
 	@echo "  make wireguard-down  - Stop WireGuard VPN"
 	@echo "  make wireguard-logs  - Follow WireGuard logs"
+	@echo "  make fail2ban-build  - Build the custom fail2ban image locally"
+	@echo "  make fail2ban-up     - Pull & start fail2ban (host-level banning)"
+	@echo "  make fail2ban-down   - Stop fail2ban"
+	@echo "  make fail2ban-logs   - Follow fail2ban logs"
+	@echo "  make fail2ban-status - Show fail2ban jails and banned IPs"
+	@echo "  make fail2ban-test   - Validate the Traefik filter against the real log"
 	@echo ""
 ifeq ($(IS_WSL),true)
 	@echo "🔍 WSL detected - will use docker-compose.wsl.yml (no HTTP/3)"
@@ -90,6 +96,47 @@ wireguard-down:
 .PHONY: wireguard-logs
 wireguard-logs:
 	@docker compose -f docker-compose.wireguard.yml logs -f
+
+.PHONY: fail2ban-build
+fail2ban-build:
+	@echo "🛠️  Building fail2ban image..."
+	@docker build -t ghcr.io/barlito/traefik-base-fail2ban:latest ./fail2ban
+	@echo "✅ Built ghcr.io/barlito/traefik-base-fail2ban:latest"
+
+.PHONY: fail2ban-up
+fail2ban-up:
+	@echo "🛡️  Starting fail2ban..."
+	@if [ -f .env.local ]; then \
+		set -a && . ./.env.local && set +a && \
+		docker compose -f docker-compose.fail2ban.yml pull && \
+		docker compose -f docker-compose.fail2ban.yml up -d; \
+	else \
+		docker compose -f docker-compose.fail2ban.yml pull && \
+		docker compose -f docker-compose.fail2ban.yml up -d; \
+	fi
+	@echo "✅ fail2ban running! (jails: sshd, traefik-badbots)"
+
+.PHONY: fail2ban-down
+fail2ban-down:
+	@echo "🗑️  Stopping fail2ban..."
+	@docker compose -f docker-compose.fail2ban.yml down
+	@echo "✅ fail2ban stopped!"
+
+.PHONY: fail2ban-logs
+fail2ban-logs:
+	@docker compose -f docker-compose.fail2ban.yml logs -f
+
+.PHONY: fail2ban-status
+fail2ban-status:
+	@docker exec fail2ban fail2ban-client status || true
+	@echo "--- traefik-badbots ---" && docker exec fail2ban fail2ban-client status traefik-badbots || true
+	@echo "--- sshd ---" && docker exec fail2ban fail2ban-client status sshd || true
+
+# Dry-run the Traefik filter against the real access log: reports how many lines
+# matched and which IPs would be banned, without touching the firewall.
+.PHONY: fail2ban-test
+fail2ban-test:
+	@docker exec fail2ban fail2ban-regex /var/log/traefik/access.log /data/filter.d/traefik-badbots.conf
 
 .PHONY: logs
 logs:
