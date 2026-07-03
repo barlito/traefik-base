@@ -1,0 +1,54 @@
+version: "3.8"
+
+# Falco — runtime threat detection, runs OUTSIDE Swarm (needs host kernel
+# access + privileges for the modern eBPF probe, which `docker stack deploy`
+# services do not support). Same standalone pattern as
+# docker-compose.wireguard.yml and docker-compose.fail2ban.yml.
+#
+# Start with: make falco-up   /   Stop with: make falco-down
+#
+# Config (falco.yaml + custom rules) is BAKED into the image (see
+# falco/Dockerfile), built and pushed to GHCR by
+# .github/workflows/build-falco.yml. The server only pulls & runs it — no repo
+# files land on disk.
+#
+# Driver: modern eBPF (CO-RE), so nothing is compiled against the host kernel.
+# Requires a host kernel >= 5.8 with BTF.
+#
+# Alerts: JSON on stdout → picked up by the observability-stack Alloy agent into
+# Loki (no extra moving part). Falco does NOT ban anything — it is a detection
+# layer, complementary to fail2ban (which does the banning).
+
+services:
+  falco:
+    image: ghcr.io/barlito/traefik-base-falco:latest
+    container_name: falco
+    hostname: falco
+    # Modern eBPF needs to load a probe and read host state. privileged + host
+    # PID is the most robust combination; the tighter alternative is to drop
+    # privileged and instead grant cap_add: [SYS_BPF, SYS_PERFMON, SYS_RESOURCE,
+    # SYS_PTRACE] — kept simple here.
+    privileged: true
+    pid: host
+    environment:
+      - TZ=${TZ:-Europe/Paris}
+      # Falco reads host paths under /host (see mounts below).
+      - HOST_ROOT=/host
+      - FALCO_HOSTNAME=${FALCO_HOSTNAME:-falco}
+    volumes:
+      # Container metadata enrichment (image/name in alerts).
+      - /var/run/docker.sock:/host/var/run/docker.sock:ro
+      # Host kernel / process / device state for the eBPF probe.
+      - /dev:/host/dev
+      - /proc:/host/proc:ro
+      - /boot:/host/boot:ro
+      - /lib/modules:/host/lib/modules:ro
+      - /etc:/host/etc:ro
+    healthcheck:
+      # falco.yaml enables the embedded webserver on :8765 for this.
+      test: ["CMD", "curl", "-sf", "http://localhost:8765/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped

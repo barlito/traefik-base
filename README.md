@@ -15,6 +15,7 @@ Production-ready Traefik 3.0 setup with Docker Compose overrides for local/produ
 - 🔧 **Bind mounts for local** (easy config editing)
 - 🔒 **WireGuard VPN** via wg-easy (web UI, QR codes, split tunnel)
 - 🔥 **Default-deny firewall** for host AND containers (INPUT + DOCKER-USER)
+- 🦅 **Falco runtime threat detection** (modern eBPF, JSON alerts to Loki)
 
 ## Quick Start
 
@@ -216,6 +217,29 @@ See [docs/FIREWALL.md](docs/FIREWALL.md) for the DOCKER-USER mechanics,
 policy details and how to open a port for a future game server, and
 [docs/SERVER_OPS.md](docs/SERVER_OPS.md) for the on-server cheatsheet
 (verify the firewall, list banned IPs — raw commands, no Makefile).
+
+## Falco (runtime threat detection)
+
+[Falco](https://falco.org/) watches kernel syscalls via **modern eBPF** and
+alerts on suspicious behaviour (shell in a container, sensitive file reads,
+privilege escalation, unexpected outbound connections…). It **alerts only, never
+bans** — a detection layer complementary to fail2ban.
+
+> Like WireGuard, Falco runs as a standalone container (`docker compose`)
+> because it needs host kernel access / privileges that Docker Swarm services
+> don't support. Its config + rules are baked into a custom GHCR image; alerts
+> are emitted as JSON on stdout and collected into Loki by the observability
+> stack's Alloy agent. Requires a host kernel **>= 5.8 with BTF**.
+
+```bash
+make falco-build   # build the image locally
+make falco-up      # pull + start
+make falco-logs    # follow alerts
+make falco-down    # stop
+```
+
+See [docs/FALCO.md](docs/FALCO.md) for the driver choice, alerting, custom
+rules, and the Falcosidekick evolution.
 
 ## Security
 

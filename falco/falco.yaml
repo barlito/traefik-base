@@ -1,0 +1,62 @@
+################################################################################
+# Falco configuration — baked into ghcr.io/barlito/traefik-base-falco
+#
+# Only the keys we care about are set here; every other key falls back to
+# Falco's built-in defaults. Full reference:
+# https://github.com/falcosecurity/falco/blob/master/falco.yaml
+################################################################################
+
+# --- Driver -------------------------------------------------------------------
+# Modern eBPF (CO-RE): the probe is baked into the Falco binary, so there is NO
+# kernel module to compile and NO kernel headers needed on the host. Requires a
+# host kernel >= 5.8 with BTF enabled.
+engine:
+  kind: modern_ebpf
+  modern_ebpf:
+    # One ring buffer shared by this many CPUs (higher = less RAM, more drops).
+    cpus_for_each_buffer: 2
+    buf_size_preset: 4
+    drop_failed_exit: false
+
+# --- Rules --------------------------------------------------------------------
+# Loaded in order; later files can override earlier ones. The stock rule sets
+# ship in the base image; our custom rules live in rules.d/ (also baked in, see
+# the Dockerfile).
+rules_files:
+  - /etc/falco/falco_rules.yaml
+  - /etc/falco/falco_rules.local.yaml
+  - /etc/falco/rules.d
+
+# Load every rule down to this priority (debug = load all).
+priority: debug
+
+# --- Output: JSON on stdout ---------------------------------------------------
+# One JSON object per alert, per line. The observability-stack Alloy agent
+# already scrapes every container's stdout into Loki, so Falco alerts land there
+# with no extra moving part. Falcosidekick (Slack / generic webhook) is
+# documented in docs/FALCO.md as a future evolution — not wired up here.
+json_output: true
+json_include_output_property: true
+json_include_tags_property: true
+buffered_outputs: false
+
+stdout_output:
+  enabled: true
+
+# Falco's own operational logs (startup, syscall drops) — also to stderr → Loki.
+log_stderr: true
+log_syslog: false
+log_level: info
+
+# The file / program / http / grpc outputs are left at their defaults (all
+# disabled) — stdout is the single source of truth. Falcosidekick would flip
+# http_output on (see docs/FALCO.md).
+
+# --- Embedded webserver -------------------------------------------------------
+# Kept on only for the /healthz endpoint used by the container healthcheck
+# (see docker-compose.falco.yml). No K8s audit here.
+webserver:
+  enabled: true
+  listen_port: 8765
+  k8s_healthz_endpoint: /healthz
+  ssl_enabled: false

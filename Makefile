@@ -27,6 +27,10 @@ help:
 	@echo "  make firewall-flush  - Remove ALL firewall rules from the host"
 	@echo "  make firewall-status - Show the firewall chains and counters"
 	@echo "  make firewall-logs   - Follow firewall logs"
+	@echo "  make falco-build     - Build the custom Falco image locally"
+	@echo "  make falco-up        - Pull & start Falco (runtime threat detection)"
+	@echo "  make falco-down      - Stop Falco"
+	@echo "  make falco-logs      - Follow Falco alerts (JSON on stdout)"
 	@echo ""
 ifeq ($(IS_WSL),true)
 	@echo "🔍 WSL detected - will use docker-compose.wsl.yml (no HTTP/3)"
@@ -181,6 +185,36 @@ firewall-status:
 .PHONY: firewall-logs
 firewall-logs:
 	@docker compose -f docker-compose.firewall.yml logs -f
+
+.PHONY: falco-build
+falco-build:
+	@echo "🛠️  Building Falco image..."
+	@docker build -t ghcr.io/barlito/traefik-base-falco:latest ./falco
+	@echo "✅ Built ghcr.io/barlito/traefik-base-falco:latest"
+
+.PHONY: falco-up
+falco-up:
+	@echo "🦅 Starting Falco (runtime threat detection)..."
+	@if [ -f .env.local ]; then \
+		set -a && . ./.env.local && set +a && \
+		docker compose -f docker-compose.falco.yml pull && \
+		docker compose -f docker-compose.falco.yml up -d; \
+	else \
+		docker compose -f docker-compose.falco.yml pull && \
+		docker compose -f docker-compose.falco.yml up -d; \
+	fi
+	@echo "✅ Falco running! (alerts as JSON on stdout → Loki via Alloy)"
+	@echo "ℹ️  Needs host kernel >= 5.8 with BTF (modern eBPF)"
+
+.PHONY: falco-down
+falco-down:
+	@echo "🗑️  Stopping Falco..."
+	@docker compose -f docker-compose.falco.yml down
+	@echo "✅ Falco stopped!"
+
+.PHONY: falco-logs
+falco-logs:
+	@docker compose -f docker-compose.falco.yml logs -f
 
 .PHONY: logs
 logs:
