@@ -1,0 +1,41 @@
+version: "3.8"
+
+# fail2ban - runs OUTSIDE Swarm (needs host networking + NET_ADMIN, which
+# `docker stack deploy` services do not support). Same standalone pattern as
+# docker-compose.wireguard.yml.
+#
+# Start with: make fail2ban-up   /   Stop with: make fail2ban-down
+#
+# Config (jails + filter) is BAKED into the image (see fail2ban/Dockerfile),
+# built and pushed to GHCR by .github/workflows/build-fail2ban.yml. The server
+# only pulls & runs it — no repo files land on disk. Only the ban database is
+# persisted, on a named volume mounted at /data/db (does not shadow the baked
+# /data/jail.d and /data/filter.d).
+#
+# Host network + NET_ADMIN let the `route` (blackhole) ban action drop offenders
+# at the routing layer for every service at once (SSH, Traefik, game servers).
+
+services:
+  fail2ban:
+    image: ghcr.io/barlito/traefik-base-fail2ban:latest
+    container_name: fail2ban
+    hostname: fail2ban
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    environment:
+      - TZ=${TZ:-Europe/Paris}
+      - F2B_LOG_LEVEL=INFO
+      - F2B_DB_PURGE_AGE=30d
+    volumes:
+      # Ban database only (config is baked into the image).
+      - fail2ban_db:/data/db
+      # Traefik access log (written to a file by traefik.prod.yml) — HTTP jail.
+      - /var/log/traefik:/var/log/traefik:ro
+      # Host system logs (auth.log / journal) — SSH jail.
+      - /var/log:/var/log:ro
+    restart: unless-stopped
+
+volumes:
+  fail2ban_db:

@@ -39,9 +39,15 @@ log:
   level: INFO  # Production log level
 
 accessLog:
-  # No filePath = stdout (for Docker logging driver to Loki/Fluentd)
+  # Write to a file (bind-mounted from the host, see docker-compose.prod.yml)
+  # so the standalone fail2ban container can tail it. accessLog has a single
+  # output, so this replaces stdout for ACCESS logs only — the app log still
+  # goes to stdout for Alloy. To keep access logs in Loki, point Alloy at this
+  # file (loki.source.file /var/log/traefik/access.log).
+  filePath: /var/log/traefik/access.log
   format: json
-  bufferingSize: 100
+  # No buffering: flush each line immediately so fail2ban reacts without delay.
+  bufferingSize: 0
   filters:
     statusCodes:
       - "400-599"
