@@ -1,29 +1,12 @@
 version: "3.8"
 
-# WSL override - Uses host mode for port publishing to avoid issues with WSL2 networking
+# WSL override - port publishing (host mode) is inherited from the base
+# docker-compose.yml, which now uses host mode for every environment.
 
 services:
   traefik:
     environment:
       - ENV=local
-    ports:
-      # Use mode: host for WSL
-      - target: 80
-        published: 80
-        protocol: tcp
-        mode: host
-      - target: 443
-        published: 443
-        protocol: tcp
-        mode: host
-      - target: 443
-        published: 8443
-        protocol: udp
-        mode: host  # HTTP/3 on port 8443 (no conflict with 443/TCP)
-      - target: 8080
-        published: 8080
-        protocol: tcp
-        mode: host
     volumes:
       - /etc/localtime:/etc/localtime:ro
       # Docker socket is no longer mounted here; Traefik reaches the Swarm API

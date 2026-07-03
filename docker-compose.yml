@@ -6,11 +6,40 @@ version: "3.8"
 services:
   traefik:
     image: traefik:3.6
+    # Publish in host mode (NOT the Swarm ingress mesh) for every environment.
+    #
+    # Why host mode: the ingress routing mesh SNATs every incoming connection to
+    # the mesh IP (10.0.0.2), which hides the real client and breaks per-IP
+    # defenses (fail2ban, rate limiting, geo-blocking). Host mode binds directly
+    # on the node, preserving the source IP.
+    #
+    # Why HTTP/3 (UDP) stays on port 444, not 443: Docker Swarm deduplicates a
+    # service's published ports by number and keeps only ONE entry when the same
+    # PublishedPort appears for both TCP and UDP — and this happens even in host
+    # mode (verified: publishing 443/tcp + 443/udp left ONLY 443/udp, killing
+    # HTTPS). It is NOT an ingress-only limitation (moby/moby#43429). So TCP and
+    # UDP must use different published ports; HTTP/3 is announced on 444 via
+    # advertisedPort (see traefik.*.yml).
+    #
+    # Trade-off: no routing-mesh load balancing — the port binds only on the
+    # node running Traefik. Fine: Traefik is pinned to a single manager replica.
     ports:
-      - "80:80/tcp"
-      - "443:443/tcp"
-      - "444:443/udp"  # HTTP/3 on alternative port 444 (avoid TCP+UDP conflict, <1024 for Chrome Alt-Svc)
-      - "8080:8080/tcp"
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: host
+      - target: 443
+        published: 443
+        protocol: tcp
+        mode: host
+      - target: 443
+        published: 444
+        protocol: udp
+        mode: host  # HTTP/3 (QUIC) on external 444 — cannot share 443 with TCP (see above)
+      - target: 8080
+        published: 8080
+        protocol: tcp
+        mode: host
     environment:
       - ACME_EMAIL=${ACME_EMAIL:-}
     deploy:

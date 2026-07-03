@@ -4,7 +4,7 @@ Production-ready Traefik 3.0 setup with Docker Compose overrides for local/produ
 
 ## Features
 
-- 🚀 HTTP/3 support on port 8443 (works everywhere: Linux, WSL, Production)
+- 🚀 HTTP/3 support on port 444/UDP (host-mode publishing, all environments)
 - 🔒 Automatic HTTP → HTTPS redirect
 - 🛡️ Security headers (HSTS, X-Frame-Options, CSP, etc.)
 - 🔐 Secure dashboard with Authelia (forwardAuth in production)
@@ -67,23 +67,33 @@ make logs           # Follow Traefik service logs (via docker service logs)
 
 - **80/TCP** - HTTP (redirects to HTTPS)
 - **443/TCP** - HTTPS (HTTP/2)
-- **8443/UDP** - HTTP/3 (QUIC)
+- **444/UDP** - HTTP/3 (QUIC)
 - **8080/TCP** - Dashboard
 
-### HTTP/3 on Alternative Port
+All ports are published in **host mode** (not the Swarm ingress mesh).
 
-HTTP/3 runs on **port 8443/UDP** instead of 443/UDP to avoid Docker Swarm limitations with TCP+UDP on the same port.
+### Why host mode
 
-**How it works:**
-1. Clients connect via HTTPS on 443/TCP
-2. Traefik sends `alt-svc: h3=":8443"` header
-3. Browsers automatically upgrade to HTTP/3 on 8443/UDP for subsequent requests
+The ingress routing mesh SNATs every incoming connection to the mesh IP
+(`10.0.0.2`), which hides the real client and breaks per-IP defenses (fail2ban,
+rate limiting, geo-blocking). Host mode binds ports directly on the node running
+Traefik, preserving the source IP.
 
-**Benefits:**
-- ✅ Works on all environments (Linux, WSL, Production)
-- ✅ No port conflict between TCP and UDP
-- ✅ Automatic HTTP/3 upgrade via standard `alt-svc` mechanism
-- ✅ Fallback to HTTP/2 if HTTP/3 unavailable
+### Why HTTP/3 uses port 444, not 443
+
+Docker Swarm deduplicates a service's published ports by number and keeps only
+**one** entry when the same port appears for both TCP and UDP — and this happens
+**even in host mode** ([moby/moby#43429](https://github.com/moby/moby/issues/43429)).
+Publishing `443/tcp` + `443/udp` leaves only one of them (killing either HTTPS or
+HTTP/3). So TCP and UDP must use different published ports: HTTPS on 443/TCP,
+HTTP/3 on 444/UDP, announced to browsers via Traefik's `advertisedPort: 444`.
+
+**HTTP/3 flow:** clients connect via HTTPS on 443/TCP, Traefik advertises
+`alt-svc: h3=":444"`, browsers upgrade to HTTP/3 on 444/UDP, with automatic
+fallback to HTTP/2.
+
+**Trade-off:** no routing-mesh load balancing — ports bind only on the node
+running Traefik. Fine here: Traefik is pinned to a single manager replica.
 
 The Makefile automatically detects your environment and deploys the correct configuration.
 
