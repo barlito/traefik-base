@@ -12,7 +12,7 @@ entryPoints:
     http2:
       maxConcurrentStreams: 250
     http3:
-      advertisedPort: 444  # Announce HTTP/3 on external port 444 (<1024 for Chrome Alt-Svc)
+      advertisedPort: 444  # HTTP/3 on external 444/UDP (can't share 443 with TCP in Swarm); alt-svc advertises h3=":444"
   # Internal-only entrypoint for Prometheus metrics (not published to the host)
   metrics:
     address: :8082
