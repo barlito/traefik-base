@@ -58,7 +58,31 @@ access logs in Loki, point Alloy at the file (`loki.source.file`).
    it without credentials.
 2. **Deploy**: run the **Deploy fail2ban** workflow, or `make fail2ban-up`.
 
+## Where to run the commands (important)
+
+fail2ban only ever runs **on the server** (deployed from CI over
+`DOCKER_HOST=ssh`). The `make fail2ban-*` targets are thin wrappers around
+`docker` / `docker compose`, so they act on **whatever daemon your CLI points
+at** — and the `fail2ban` container exists only on the server. Run against the
+server, not a bare local daemon (which has no `fail2ban` container):
+
+```bash
+# from your workstation, target the prod daemon (same as the CI deploy)
+export DOCKER_HOST=ssh://<user>@<server>:<port>
+make fail2ban-status
+```
+
+Or SSH into the server and run the underlying command directly (no Makefile
+needed there — the server only has the container):
+
+```bash
+docker exec fail2ban fail2ban-client status
+docker exec fail2ban fail2ban-regex /var/log/traefik/access.log /data/filter.d/traefik-badbots.conf
+```
+
 ## Usage
+
+All of these act on the server (see above — set `DOCKER_HOST` or run on the box):
 
 ```bash
 make fail2ban-up       # pull + start
