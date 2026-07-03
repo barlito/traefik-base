@@ -1,0 +1,53 @@
+################################################################################
+# Custom Falco rules for traefik-base
+# (baked into the image at /etc/falco/rules.d/custom-rules.yaml).
+#
+# These sit ON TOP of Falco's stock rule sets and show how to extend them.
+# Keep this file small and high-signal — noisy rules drown the real alerts.
+################################################################################
+
+# Shell binaries we treat as "interactive" when spawned inside a container.
+- macro: barlito_interactive_shell
+  condition: proc.name in (bash, sh, ash, zsh, dash, ksh, csh, tcsh, fish)
+
+# 1) A shell was opened inside a container. On this host every workload is a
+#    container and we never `docker exec` a shell in normal operation, so this
+#    is almost always an operator debugging by hand — or an attacker who got in.
+#    Overlaps with the stock "Terminal shell in container" rule, but is scoped
+#    and tagged for our stack to make the demo of extensibility explicit.
+- rule: Shell spawned in a Barlito container
+  desc: >
+    An interactive shell (bash, sh, ...) was executed inside a container.
+    Expected only during manual debugging; otherwise investigate.
+  condition: >
+    spawned_process
+    and container
+    and barlito_interactive_shell
+    and proc.tty != 0
+  output: >
+    Interactive shell opened in a container
+    (user=%user.name uid=%user.uid shell=%proc.name parent=%proc.pname
+     cmdline=%proc.cmdline container=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [container, shell, mitre_execution, barlito]
+
+# 2) A process inside a container read a well-known secret/credential file.
+#    Catches attempts to exfiltrate SSH keys, /etc/shadow or cloud credentials.
+- rule: Sensitive credential file read in a Barlito container
+  desc: >
+    A process inside a container opened a sensitive credential file
+    (private keys, /etc/shadow, cloud creds).
+  condition: >
+    open_read
+    and container
+    and (fd.name in (/etc/shadow, /etc/sudoers)
+         or fd.name startswith /root/.ssh/
+         or fd.name startswith /root/.aws/
+         or fd.name endswith id_rsa)
+    and not proc.name in (sshd, sudo, su)
+  output: >
+    Sensitive credential file read in a container
+    (file=%fd.name proc=%proc.name cmdline=%proc.cmdline user=%user.name
+     container=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [container, filesystem, secrets, mitre_credential_access, barlito]
