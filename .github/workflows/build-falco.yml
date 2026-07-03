@@ -1,0 +1,45 @@
+name: Build Falco image
+
+# Builds the custom Falco image (falco.yaml + custom rules baked in) and pushes
+# it to GHCR. Run this BEFORE deploy-falco whenever falco/ changes.
+#
+# One-time setup: after the first push, set the package
+# ghcr.io/barlito/traefik-base-falco to PUBLIC (Packages > Package settings >
+# Change visibility) so the server can pull it without credentials.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - "falco/**"
+      - ".github/workflows/build-falco.yml"
+
+env:
+  IMAGE: ghcr.io/barlito/traefik-base-falco
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./falco
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
