@@ -40,19 +40,42 @@ ignoreip = 127.0.0.1/8 ::1 10.8.0.0/24 51.68.154.52 86.248.30.211
 
 
 # --- SSH brute-force --------------------------------------------------------
+# Calibrated against real attack data (2026-08-07 audit): a persistent scanner
+# spreads ~37 countable failures over a whole day, so a short findtime barely
+# ever catches it (maxretry=4/findtime=10m covered 4% of the day; 2/1h/6h
+# covers 75%, and bantime.increment escalates to 100% within a week).
+# False-positive risk is low: zero `Failed publickey` from admin IPs in the
+# whole log history, and the admin IPs are in ignoreip anyway.
 [sshd]
 enabled  = true
 # sshd listens on 3333, not 22. The `route` banaction ignores ports (all-or-
 # nothing per IP), but keep this correct so a future port-aware banaction
 # (iptables) doesn't silently ban the wrong port.
 port     = 3333
-maxretry = 4
-bantime  = 1h
+maxretry = 2
+findtime = 1h
+bantime  = 6h
 # Debian/Ubuntu + rsyslog (the OVH host) writes SSH auth to /var/log/auth.log,
 # mounted read-only. On a journald-only host, set `backend = systemd` instead
 # (the /var/log mount already exposes the journal).
 backend  = auto
 logpath  = /var/log/auth.log
+
+
+# --- SSH connection flood (MaxStartups saturation) ---------------------------
+# Bans IPs that hold dozens of parallel UNAUTHENTICATED SSH connections,
+# starving sshd's MaxStartups pool so that legitimate connections (including
+# GitHub Actions deploys, which open one SSH session per compose service) get
+# dropped at random. These `past MaxStartups` lines are matched by NO standard
+# fail2ban filter — see filter.d/sshd-flood.conf.
+[sshd-flood]
+enabled  = true
+filter   = sshd-flood
+port     = 3333
+logpath  = /var/log/auth.log
+maxretry = 5
+findtime = 10m
+bantime  = 24h
 
 
 # --- HTTP scanners (Traefik) ------------------------------------------------
