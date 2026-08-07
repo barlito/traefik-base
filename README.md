@@ -14,6 +14,7 @@ Production-ready Traefik 3.0 setup with Docker Compose overrides for local/produ
 - 📦 **Docker Configs for prod** (no file sync needed!)
 - 🔧 **Bind mounts for local** (easy config editing)
 - 🔒 **WireGuard VPN** via wg-easy (web UI, QR codes, split tunnel)
+- 🔥 **Default-deny firewall** for host AND containers (INPUT + DOCKER-USER)
 
 ## Quick Start
 
@@ -190,6 +191,28 @@ By default, all client traffic goes through the VPN (`0.0.0.0/0`). To only route
 ```ini
 AllowedIPs = 10.8.0.0/24, <SERVER_PUBLIC_IP>/32
 ```
+
+## Firewall (host + containers)
+
+Default-deny firewall covering both the host (`INPUT`: SSH only) and the
+published container ports (`DOCKER-USER`: Traefik 80/443/444 + WireGuard
+51820 only). Anything else published — by mistake or by default, like
+Traefik's 8080 — is unreachable from the internet. Host firewalls like UFW
+can't do this: Docker's DNAT bypasses `INPUT` entirely.
+
+> Like WireGuard/fail2ban, it runs as a standalone container (host netns +
+> `NET_ADMIN`) with the ruleset baked into a GHCR image. Fail-open design:
+> established connections always pass, so it can never cut the SSH session
+> that would fix it.
+
+```bash
+make firewall-up       # pull + start
+make firewall-status   # chains + packet counters
+make firewall-flush    # remove the rules entirely
+```
+
+See [docs/FIREWALL.md](docs/FIREWALL.md) for the DOCKER-USER mechanics,
+policy details and how to open a port for a future game server.
 
 ## Security
 
