@@ -30,11 +30,14 @@ services:
       - NET_RAW
     environment:
       - TZ=${TZ:-Europe/Paris}
-      # Uncomment/adjust to override the defaults baked into the script:
-      # - FW_HOST_ALLOW_TCP=3333
+      # The ports open to the internet. To allow a new published port (e.g. a
+      # game server), add it here and re-run the Deploy firewall workflow —
+      # NO image rebuild needed, the script reads these at startup.
+      - FW_DOCKER_ALLOW_TCP=80,443            # Traefik HTTP/HTTPS
+      - FW_DOCKER_ALLOW_UDP=444,51820         # HTTP/3 + WireGuard
+      - FW_HOST_ALLOW_TCP=3333                # sshd (host, not a container)
+      # Other knobs (defaults shown, see firewall/apply-firewall.sh):
       # - FW_HOST_ALLOW_UDP=
-      # - FW_DOCKER_ALLOW_TCP=80,443
-      # - FW_DOCKER_ALLOW_UDP=444,51820
       # - FW_VPN_SUBNET=10.8.0.0/24
       # - FW_LOG_DROPS=true
       # - FW_INTERVAL=60
