@@ -1,0 +1,87 @@
+# All fail2ban jails + global policy in a single file (baked into the image).
+# The only companion file is filter.d/traefik-badbots.conf (the JSON filter for
+# the Traefik access log — a filter must live in its own file).
+
+[DEFAULT]
+# --- Ban policy -------------------------------------------------------------
+bantime  = 1h
+findtime = 10m
+maxretry = 5
+
+# Escalate repeat offenders: each new ban of the same IP lasts factor x longer,
+# capped at 1 MONTH. A persistent scanner ends up banned for a long time.
+bantime.increment = true
+bantime.factor    = 2
+bantime.maxtime   = 30d
+
+# --- Ban action: blackhole via the routing table ---------------------------
+# `route` runs `ip route add unreachable <ip>` in the HOST network namespace
+# (this container is network_mode: host + NET_ADMIN). It drops the IP at the
+# routing layer, upstream of the iptables/Docker DNAT path, so ONE ban covers
+# host processes (sshd) AND containerised services (Traefik, game servers).
+# Trade-off: all-or-nothing per IP (no per-port granularity) — exactly what we
+# want for "ban everything".
+banaction          = route
+banaction_allports = route
+
+# --- Never ban ourselves ----------------------------------------------------
+# The ban action is all-ports (blackhole route): a self-ban would cut SSH
+# *and* WireGuard *and* HTTPS at once, leaving only the OVH KVM/rescue
+# console — hence the belt-and-braces here.
+#   127.0.0.1/8 ::1  localhost
+#   10.8.0.0/24      WireGuard clients (must not lock themselves out)
+#   51.68.154.52     the server itself (hairpin traffic via the public IP —
+#                    e.g. a container calling another service through its
+#                    public domain — must never trigger a self-ban)
+#   86.248.30.211    home IP — remove if it turns out to be dynamic (a stale
+#                    entry whitelists a stranger); maxretry=20 below is the
+#                    real guard either way
+ignoreip = 127.0.0.1/8 ::1 10.8.0.0/24 51.68.154.52 86.248.30.211
+
+
+# --- SSH brute-force --------------------------------------------------------
+[sshd]
+enabled  = true
+# sshd listens on 3333, not 22. The `route` banaction ignores ports (all-or-
+# nothing per IP), but keep this correct so a future port-aware banaction
+# (iptables) doesn't silently ban the wrong port.
+port     = 3333
+maxretry = 4
+bantime  = 1h
+# Debian/Ubuntu + rsyslog (the OVH host) writes SSH auth to /var/log/auth.log,
+# mounted read-only. On a journald-only host, set `backend = systemd` instead
+# (the /var/log mount already exposes the journal).
+backend  = auto
+logpath  = /var/log/auth.log
+
+
+# --- HTTP scanners (Traefik) ------------------------------------------------
+# Bans IPs producing a burst of 4xx (probing /.env, /.git, /actuator, wp-*, ...).
+# Traefik logs only 400-599 (accessLog.filters), and the filter targets 4xx
+# only (never our own 5xx). 20 errors within 1 min: a legit client can burst
+# 4xx (Authelia 401s, a polling media client, a page with several 404 assets)
+# without tripping it; a scanner doing dozens/min still will. Combined with
+# ignoreip above, this keeps the all-ports ban from ever locking us out.
+# NOTE: the access log is JSON — validate the filter with `make fail2ban-test`.
+[traefik-badbots]
+enabled  = true
+filter   = traefik-badbots
+logpath  = /var/log/traefik/access.log
+maxretry = 20
+findtime = 1m
+bantime  = 6h
+
+
+# --- Game server template (DISABLED) ----------------------------------------
+# No game server in this stack yet. To activate for e.g. Minecraft: create
+# filter.d/minecraft.conf, mount the server log into the fail2ban container
+# (docker-compose.fail2ban.yml), set enabled = true and fix logpath, then
+# `make fail2ban-test`. The blackhole action already covers TCP/UDP game
+# traffic, so no per-jail action is needed.
+#[minecraft]
+#enabled  = false
+#filter   = minecraft
+#logpath  = /var/log/minecraft/latest.log
+#maxretry = 6
+#findtime = 5m
+#bantime  = 1h

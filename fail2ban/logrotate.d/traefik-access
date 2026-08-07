@@ -1,0 +1,14 @@
+# Rotation of the Traefik access log tailed by the traefik-badbots jail.
+# copytruncate: Traefik keeps its own fd open on the file (it knows nothing
+# about the rotation), so copy-then-truncate is the only safe strategy. The
+# tiny window between copy and truncate can lose a handful of lines — fine
+# for a ban log. Checked hourly by crond (see the Dockerfile); rotates as
+# soon as the file exceeds `size`.
+/var/log/traefik/access.log {
+    size 50M
+    rotate 4
+    copytruncate
+    compress
+    missingok
+    notifempty
+}
