@@ -1,0 +1,45 @@
+name: Build fail2ban image
+
+# Builds the custom fail2ban image (config baked in) and pushes it to GHCR.
+# Run this BEFORE deploy-fail2ban whenever fail2ban/ changes.
+#
+# One-time setup: after the first push, set the package
+# ghcr.io/barlito/traefik-base-fail2ban to PUBLIC (Packages > Package settings >
+# Change visibility) so the server can pull it without credentials.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - "fail2ban/**"
+      - ".github/workflows/build-fail2ban.yml"
+
+env:
+  IMAGE: ghcr.io/barlito/traefik-base-fail2ban
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./fail2ban
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
