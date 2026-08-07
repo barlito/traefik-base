@@ -1,5 +1,3 @@
-version: "3.8"
-
 # fail2ban - runs OUTSIDE Swarm (needs host networking + NET_ADMIN, which
 # `docker stack deploy` services do not support). Same standalone pattern as
 # docker-compose.wireguard.yml.
@@ -27,14 +25,19 @@ services:
     environment:
       - TZ=${TZ:-Europe/Paris}
       - F2B_LOG_LEVEL=INFO
-      - F2B_DB_PURGE_AGE=30d
+      # Must outlive bantime.maxtime (30d): the ban history drives the
+      # bantime.increment escalation, purging it at exactly 30d would reset
+      # repeat offenders right when the history still matters.
+      - F2B_DB_PURGE_AGE=60d
     volumes:
       # Ban database only (config is baked into the image).
       - fail2ban_db:/data/db
-      # Traefik access log (written to a file by traefik.prod.yml) — HTTP jail.
-      - /var/log/traefik:/var/log/traefik:ro
-      # Host system logs (auth.log / journal) — SSH jail.
+      # Host system logs (auth.log / journal) — SSH jail. Read-only.
       - /var/log:/var/log:ro
+      # Traefik access log — HTTP jail. Mounted rw ON TOP of the ro mount
+      # above: this container also rotates it (logrotate copytruncate via
+      # crond, baked into the image — see fail2ban/Dockerfile).
+      - /var/log/traefik:/var/log/traefik
     restart: unless-stopped
 
 volumes:

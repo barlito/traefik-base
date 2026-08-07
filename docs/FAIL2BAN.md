@@ -40,14 +40,26 @@ Everything is in a single `fail2ban/jail.d/jail.local`:
 | `minecraft` *(commented template)* | game server log | example for later |
 
 Global policy: 5 strikes / 10 min → 1 h ban, doubling on each repeat up to
-**30 days**. `ignoreip` covers localhost and the WireGuard subnet.
+**30 days** (the ban DB is purged at 60 d — `F2B_DB_PURGE_AGE` — so the
+history outlives `bantime.maxtime` and the escalation keeps working).
+
+**Self-lockout guard**: the ban is all-ports — a self-ban would cut SSH,
+WireGuard *and* HTTPS at once (only recovery: OVH KVM/rescue). Two layers of
+protection: `ignoreip` covers localhost, the WireGuard subnet **and the home
+IP**, and the HTTP jail needs 20 × 4xx within 1 min (a burst of Authelia
+401s or 404 assets won't trip it).
 
 ## Access log plumbing
 
 Traefik's access log is switched from stdout to `/var/log/traefik/access.log`
-(`accessLog.filePath` in `traefik.prod.yml`), a host bind mount shared read-only
-with fail2ban. Traefik's **application** log stays on stdout for Alloy. To keep
+(`accessLog.filePath` in `traefik.prod.yml`), a host bind mount shared with
+fail2ban. Traefik's **application** log stays on stdout for Alloy. To keep
 access logs in Loki, point Alloy at the file (`loki.source.file`).
+
+**Rotation**: nothing on the host rotates that file, so the fail2ban image
+embeds `logrotate` (hourly via busybox `crond`, started by the entrypoint
+wrapper): `copytruncate` above 50 MB, 4 compressed archives kept. That is why
+the `/var/log/traefik` mount is read-write.
 
 ## Deploy
 

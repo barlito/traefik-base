@@ -12,5 +12,19 @@
 # /data/jail.d and /data/filter.d.
 FROM crazymax/fail2ban:1.1.0
 
+# logrotate for the Traefik access log (nothing else rotates it: it lives on a
+# host bind mount and Traefik never rotates its own logs). Runs via busybox
+# crond, started by the entrypoint wrapper below.
+RUN apk add --no-cache logrotate \
+    && echo "0 * * * * /usr/sbin/logrotate /etc/logrotate.conf" >> /etc/crontabs/root
+
+COPY logrotate.d/ /etc/logrotate.d/
+COPY entrypoint-wrapper.sh /entrypoint-wrapper.sh
+RUN chmod +x /entrypoint-wrapper.sh
+
 COPY jail.d/ /data/jail.d/
 COPY filter.d/ /data/filter.d/
+
+# Setting ENTRYPOINT resets the inherited CMD — redeclare the stock one.
+ENTRYPOINT ["/entrypoint-wrapper.sh"]
+CMD ["fail2ban-server", "-f", "-x", "-v", "start"]
