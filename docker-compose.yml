@@ -36,10 +36,9 @@ services:
         published: 444
         protocol: udp
         mode: host  # HTTP/3 (QUIC) on external 444 — cannot share 443 with TCP (see above)
-      - target: 8080
-        published: 8080
-        protocol: tcp
-        mode: host
+      # 8080 (insecure API) is deliberately NOT published: api.insecure is
+      # false in every environment, the dashboard is served through the
+      # `dashboard` router on 443 (api@internal).
     environment:
       - ACME_EMAIL=${ACME_EMAIL:-}
     deploy:

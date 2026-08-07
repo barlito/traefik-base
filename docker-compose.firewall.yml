@@ -1,0 +1,41 @@
+# Firewall — filters the host (INPUT) AND the containers (DOCKER-USER), which
+# no host-side tool like UFW does correctly: Docker DNATs published ports in
+# PREROUTING, so they bypass INPUT entirely.
+#
+# Runs OUTSIDE Swarm (needs the host network namespace + NET_ADMIN, which
+# `docker stack deploy` services do not support). Same standalone pattern as
+# docker-compose.{wireguard,fail2ban,falco}.yml. The ruleset is BAKED into the
+# image (see firewall/Dockerfile) — no repo files land on the server.
+#
+# Start with: make firewall-up   /   Stop with: make firewall-down
+# Stopping the container LEAVES the rules in place (protection survives the
+# container). To actually remove them: make firewall-flush.
+#
+# Default policy:
+#   - host:       allow SSH (3333/tcp), ping (rate-limited) — drop the rest
+#   - containers: allow 80,443/tcp (Traefik), 444/udp (HTTP/3),
+#                 51820/udp (WireGuard) — drop every other published port
+#   - VPN clients (10.8.0.0/24) and RFC1918 sources: full access
+# A port published by mistake (a debug 5432, a game server not yet declared)
+# is therefore unreachable from the internet until explicitly allowed here.
+
+services:
+  firewall:
+    image: ghcr.io/barlito/traefik-base-firewall:latest
+    container_name: firewall
+    hostname: firewall
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    environment:
+      - TZ=${TZ:-Europe/Paris}
+      # Uncomment/adjust to override the defaults baked into the script:
+      # - FW_HOST_ALLOW_TCP=3333
+      # - FW_HOST_ALLOW_UDP=
+      # - FW_DOCKER_ALLOW_TCP=80,443
+      # - FW_DOCKER_ALLOW_UDP=444,51820
+      # - FW_VPN_SUBNET=10.8.0.0/24
+      # - FW_LOG_DROPS=true
+      # - FW_INTERVAL=60
+    restart: unless-stopped

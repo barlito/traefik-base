@@ -21,6 +21,12 @@ help:
 	@echo "  make fail2ban-logs   - Follow fail2ban logs"
 	@echo "  make fail2ban-status - Show fail2ban jails and banned IPs"
 	@echo "  make fail2ban-test   - Validate the Traefik filter against the real log"
+	@echo "  make firewall-build  - Build the custom firewall image locally"
+	@echo "  make firewall-up     - Pull & start the firewall (host + containers)"
+	@echo "  make firewall-down   - Stop the firewall container (rules stay)"
+	@echo "  make firewall-flush  - Remove ALL firewall rules from the host"
+	@echo "  make firewall-status - Show the firewall chains and counters"
+	@echo "  make firewall-logs   - Follow firewall logs"
 	@echo ""
 ifeq ($(IS_WSL),true)
 	@echo "🔍 WSL detected - will use docker-compose.wsl.yml (no HTTP/3)"
@@ -137,6 +143,44 @@ fail2ban-status:
 .PHONY: fail2ban-test
 fail2ban-test:
 	@docker exec fail2ban fail2ban-regex /var/log/traefik/access.log /data/filter.d/traefik-badbots.conf
+
+.PHONY: firewall-build
+firewall-build:
+	@echo "🛠️  Building firewall image..."
+	@docker build -t ghcr.io/barlito/traefik-base-firewall:latest ./firewall
+	@echo "✅ Built ghcr.io/barlito/traefik-base-firewall:latest"
+
+.PHONY: firewall-up
+firewall-up:
+	@echo "🔥 Starting firewall (host INPUT + DOCKER-USER filtering)..."
+	@docker compose -f docker-compose.firewall.yml pull
+	@docker compose -f docker-compose.firewall.yml up -d
+	@echo "✅ Firewall running! (make firewall-status to inspect)"
+
+.PHONY: firewall-down
+firewall-down:
+	@echo "🗑️  Stopping firewall container (rules STAY in place)..."
+	@docker compose -f docker-compose.firewall.yml down
+	@echo "ℹ️  To remove the rules too: make firewall-flush"
+
+.PHONY: firewall-flush
+firewall-flush:
+	@echo "🧹 Removing firewall rules from the host..."
+	@docker compose -f docker-compose.firewall.yml down 2>/dev/null || true
+	@docker run --rm --network host --cap-add NET_ADMIN --cap-add NET_RAW \
+		-e FLUSH=1 ghcr.io/barlito/traefik-base-firewall:latest
+	@echo "✅ Host back to Docker defaults (everything published is exposed!)"
+
+.PHONY: firewall-status
+firewall-status:
+	@docker exec firewall sh -c ' \
+		IPT=iptables-nft; iptables-nft -t nat -S DOCKER >/dev/null 2>&1 || IPT=iptables-legacy; \
+		echo "--- INPUT (host) ---"; $$IPT -L BARLITO-FW-INPUT -v -n; \
+		echo "--- DOCKER-USER (containers) ---"; $$IPT -L BARLITO-FW-DOCKER -v -n'
+
+.PHONY: firewall-logs
+firewall-logs:
+	@docker compose -f docker-compose.firewall.yml logs -f
 
 .PHONY: logs
 logs:
