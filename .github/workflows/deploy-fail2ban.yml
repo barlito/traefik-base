@@ -1,0 +1,37 @@
+name: Deploy fail2ban
+
+# Pulls the pre-built image (see build-fail2ban.yml) and (re)starts the
+# standalone fail2ban container on the server over DOCKER_HOST=ssh.
+# Run build-fail2ban first if fail2ban/ changed.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      DOCKER_HOST: ssh://${{ vars.SERVER_USERNAME }}@${{ vars.SERVER_HOST }}:${{ vars.SERVER_PORT }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy fail2ban
+        run: |
+          docker compose -f docker-compose.fail2ban.yml pull
+          docker compose -f docker-compose.fail2ban.yml up -d
+
+      - name: Verify Deployment
+        run: docker ps --filter name=fail2ban --format "table {{.Names}}\t{{.Status}}"
