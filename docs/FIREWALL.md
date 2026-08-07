@@ -69,7 +69,10 @@ Stopping the container **leaves the rules in place** (protection survives);
   `FORWARD`/`DOCKER-USER` (host mode changes the SNAT behaviour, not the DNAT
   path), so they are covered by the same allowlist.
 - **Game servers later**: add the published port to `FW_DOCKER_ALLOW_TCP/UDP`
-  in `docker-compose.firewall.yml`, `make firewall-build` + push, redeploy.
+  in `docker-compose.firewall.yml` and re-run the **Deploy firewall**
+  workflow — no image rebuild, the ports are env vars read at startup.
+  (Then optionally add a fail2ban jail for the game's log — see
+  [FAIL2BAN.md](FAIL2BAN.md).)
 
 ## Deploy
 
