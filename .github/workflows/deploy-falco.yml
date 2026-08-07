@@ -1,0 +1,37 @@
+name: Deploy Falco
+
+# Pulls the pre-built image (see build-falco.yml) and (re)starts the standalone
+# Falco container on the server over DOCKER_HOST=ssh.
+# Run build-falco first if falco/ changed.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      DOCKER_HOST: ssh://${{ vars.SERVER_USERNAME }}@${{ vars.SERVER_HOST }}:${{ vars.SERVER_PORT }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy Falco
+        run: |
+          docker compose -f docker-compose.falco.yml pull
+          docker compose -f docker-compose.falco.yml up -d
+
+      - name: Verify Deployment
+        run: docker ps --filter name=falco --format "table {{.Names}}\t{{.Status}}"
