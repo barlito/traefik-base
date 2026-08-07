@@ -1,5 +1,3 @@
-version: "3.8"
-
 # Falco — runtime threat detection, runs OUTSIDE Swarm (needs host kernel
 # access + privileges for the modern eBPF probe, which `docker stack deploy`
 # services do not support). Same standalone pattern as

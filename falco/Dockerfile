@@ -9,11 +9,14 @@
 #
 # Driver: modern eBPF (CO-RE) — the probe is compiled into the Falco binary, so
 # there is nothing to build against the host kernel and no headers are needed.
-# Hence the slim `falco-no-driver` base (no kmod/eBPF build toolchain). Requires
-# a host kernel >= 5.8 with BTF enabled (the OVH host must satisfy this).
-FROM falcosecurity/falco-no-driver:0.39.2
+# Since 0.41 the default `falcosecurity/falco` image IS the slim one (the old
+# `falco-no-driver` tag is gone; kmod/legacy-eBPF tooling moved to separate
+# images). Requires a host kernel >= 5.8 with BTF enabled.
+FROM falcosecurity/falco:0.44.1
 
-# Main config: engine.kind=modern_ebpf + JSON alerts on stdout.
+# Main config: engine.kind=modern_ebpf + container plugin + JSON alerts on
+# stdout. Replaces the stock /etc/falco/falco.yaml entirely (self-contained,
+# config.d is not loaded — see config_files in falco.yaml).
 COPY falco.yaml /etc/falco/falco.yaml
 
 # Custom rules, loaded on top of the stock rule sets. rules.d/ is referenced by
