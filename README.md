@@ -69,9 +69,10 @@ make logs           # Follow Traefik service logs (via docker service logs)
 - **80/TCP** - HTTP (redirects to HTTPS)
 - **443/TCP** - HTTPS (HTTP/2)
 - **444/UDP** - HTTP/3 (QUIC)
-- **8080/TCP** - Dashboard
 
 All ports are published in **host mode** (not the Swarm ingress mesh).
+The dashboard has no dedicated port: it is served by the `dashboard` router
+on 443 (`api@internal`); 8080 (insecure API) is disabled and not published.
 
 ### Why host mode
 
@@ -196,9 +197,9 @@ AllowedIPs = 10.8.0.0/24, <SERVER_PUBLIC_IP>/32
 
 Default-deny firewall covering both the host (`INPUT`: SSH only) and the
 published container ports (`DOCKER-USER`: Traefik 80/443/444 + WireGuard
-51820 only). Anything else published — by mistake or by default, like
-Traefik's 8080 — is unreachable from the internet. Host firewalls like UFW
-can't do this: Docker's DNAT bypasses `INPUT` entirely.
+51820 only). Any other published port — a debug database, a forgotten admin
+UI — is unreachable from the internet. Host firewalls like UFW can't do
+this: Docker's DNAT bypasses `INPUT` entirely.
 
 > Like WireGuard/fail2ban, it runs as a standalone container (host netns +
 > `NET_ADMIN`) with the ruleset baked into a GHCR image. Fail-open design:

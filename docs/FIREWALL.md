@@ -28,8 +28,8 @@ attaches there for containers, and to `INPUT` for the host.
   `3333/tcp` → everything else from the internet **dropped**.
 - **Containers (`DOCKER-USER`)**: `80,443/tcp` (Traefik), `444/udp` (HTTP/3),
   `51820/udp` (WireGuard) → every other **published port is dropped** from the
-  internet. Publishing a port by mistake (a debug 5432, a forgotten admin UI —
-  e.g. the always-published Traefik `8080`) no longer exposes it.
+  internet. Publishing a port by mistake (a debug 5432, a forgotten admin
+  UI) no longer exposes it.
 - **VPN clients** (`10.8.0.0/24`) and **RFC1918 sources** (container-to-
   container on docker bridges/overlays, container-to-host) pass everything.
 - Ports are matched with `--ctorigdstport` (the ORIGINAL pre-DNAT published
@@ -96,7 +96,7 @@ make firewall-flush    # remove the rules — host back to Docker defaults
 Verify from outside (e.g. from home, NOT through the VPN):
 
 ```bash
-nmap -p 80,443,3333,8080 <server-ip>   # expect: 80,443,3333 open, 8080 filtered
+nmap -p 80,443,3333,5432 <server-ip>   # expect: 80,443,3333 open, anything else filtered
 ```
 
 ## Configuration
