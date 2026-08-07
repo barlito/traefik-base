@@ -25,12 +25,18 @@ banaction          = route
 banaction_allports = route
 
 # --- Never ban ourselves ----------------------------------------------------
-# localhost + the WireGuard subnet (VPN clients must not lock themselves out)
-# + the home IP. The ban action is all-ports (blackhole route): a self-ban
-# would cut SSH *and* WireGuard *and* HTTPS at once, leaving only the OVH
-# KVM/rescue console — hence the belt-and-braces here. Update the home IP if
-# the ISP reassigns it.
-ignoreip = 127.0.0.1/8 ::1 10.8.0.0/24 86.248.30.211
+# The ban action is all-ports (blackhole route): a self-ban would cut SSH
+# *and* WireGuard *and* HTTPS at once, leaving only the OVH KVM/rescue
+# console — hence the belt-and-braces here.
+#   127.0.0.1/8 ::1  localhost
+#   10.8.0.0/24      WireGuard clients (must not lock themselves out)
+#   51.68.154.52     the server itself (hairpin traffic via the public IP —
+#                    e.g. a container calling another service through its
+#                    public domain — must never trigger a self-ban)
+#   86.248.30.211    home IP — remove if it turns out to be dynamic (a stale
+#                    entry whitelists a stranger); maxretry=20 below is the
+#                    real guard either way
+ignoreip = 127.0.0.1/8 ::1 10.8.0.0/24 51.68.154.52 86.248.30.211
 
 
 # --- SSH brute-force --------------------------------------------------------

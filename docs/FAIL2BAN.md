@@ -45,9 +45,10 @@ history outlives `bantime.maxtime` and the escalation keeps working).
 
 **Self-lockout guard**: the ban is all-ports — a self-ban would cut SSH,
 WireGuard *and* HTTPS at once (only recovery: OVH KVM/rescue). Two layers of
-protection: `ignoreip` covers localhost, the WireGuard subnet **and the home
-IP**, and the HTTP jail needs 20 × 4xx within 1 min (a burst of Authelia
-401s or 404 assets won't trip it).
+protection: `ignoreip` covers localhost, the WireGuard subnet, **the server's
+own IP** (hairpin traffic through the public domain) **and the home IP**
+(remove it if it turns out to be dynamic), and the HTTP jail needs 20 × 4xx
+within 1 min (a burst of Authelia 401s or 404 assets won't trip it).
 
 ## Access log plumbing
 
