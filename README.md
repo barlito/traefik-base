@@ -213,7 +213,9 @@ make firewall-flush    # remove the rules entirely
 ```
 
 See [docs/FIREWALL.md](docs/FIREWALL.md) for the DOCKER-USER mechanics,
-policy details and how to open a port for a future game server.
+policy details and how to open a port for a future game server, and
+[docs/SERVER_OPS.md](docs/SERVER_OPS.md) for the on-server cheatsheet
+(verify the firewall, list banned IPs — raw commands, no Makefile).
 
 ## Security
 

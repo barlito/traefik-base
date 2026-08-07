@@ -99,6 +99,10 @@ Verify from outside (e.g. from home, NOT through the VPN):
 nmap -p 80,443,3333,5432 <server-ip>   # expect: 80,443,3333 open, anything else filtered
 ```
 
+On the server itself there is no repo and no Makefile — see
+[SERVER_OPS.md](SERVER_OPS.md) for the raw `docker exec` commands (chains,
+counters, drop log, emergency flush, fail2ban banned IPs).
+
 ## Configuration
 
 Everything is an env var on the container (defaults in the script):
