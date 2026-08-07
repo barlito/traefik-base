@@ -25,8 +25,15 @@ pushed to GHCR by CI. The server only pulls & runs it.
 
 We use the **modern eBPF** engine (`engine.kind: modern_ebpf`). The probe is
 compiled **into the Falco binary** (CO-RE), so there is **no kernel module to
-build** and no kernel headers needed on the host. That is why the slim
-`falcosecurity/falco-no-driver` base image is enough.
+build** and no kernel headers needed on the host. Since Falco 0.41 the default
+`falcosecurity/falco` image is that slim, driver-less image (the old
+`falco-no-driver` tag no longer exists).
+
+Since Falco 0.44, the `container.*` fields (name, image…) in alerts come from
+the **container plugin**, configured in our `falco.yaml` (`load_plugins` +
+`plugins:` block) against the Docker socket mounted under `/host`. Socket
+paths in the plugin config are given WITHOUT the `/host` prefix — the plugin
+prepends `HOST_ROOT` itself.
 
 > **Prerequisite:** the host kernel must be **>= 5.8 with BTF enabled**. The OVH
 > host must satisfy this — verify with `uname -r` and
@@ -64,13 +71,27 @@ Falco loads its **stock rule sets** (`falco_rules.yaml`,
 `falco_rules.local.yaml`) plus our custom rules in
 `falco/rules.d/custom-rules.yaml` (baked in, referenced by `rules_files`):
 
-| Rule | Fires when |
-|------|------------|
-| `Shell spawned in a Barlito container` | an interactive shell (bash/sh/…) with a TTY is executed inside a container |
-| `Sensitive credential file read in a Barlito container` | a container process reads SSH keys, `/etc/shadow`, or cloud credentials |
+| Rule | Priority | Fires when |
+|------|----------|------------|
+| `Interactive shell in a Barlito container` | WARNING | an interactive shell (bash/sh/…) with a TTY is executed inside a container (manual debug or intrusion) |
+| `Package manager run in a Barlito container` | ERROR | apt/apk/pip/… runs inside a container — images are built in CI, runtime installs are never expected |
+| `Traefik ACME store read by another process` | CRITICAL | anything other than the `traefik` binary reads `acme.json` (all the stack's TLS private keys) |
+| `Docker socket accessed by unexpected container` | CRITICAL | a container not on the allowlist (socket-proxy, falco, alloy) opens the Docker socket — e.g. it was started with the socket bind-mounted |
+| `Outbound connection from docker-socket-proxy` | CRITICAL | the socket-proxy initiates an outbound network connection (it should only accept inbound + talk to the unix socket) |
+| `Sensitive credential file read in a Barlito container` | WARNING | a container process reads SSH keys, `/etc/shadow`, or cloud credentials |
 
-These are intentionally small examples of extensibility — keep the file
-high-signal, noisy rules drown real alerts.
+Notes:
+
+- Falco only fires the **first** matching rule per event (`rule_matching:
+  first`); the stock `Terminal shell in container` rule is disabled in our
+  file so that our shell rule (with container/image fields) wins.
+- The Docker-socket rule matches `open*` only, **not** `connect()`: Falco's
+  unix-socket name resolution returns stale names (kernel struct reuse),
+  which floods the rule with false positives from FrankenPHP worker sockets.
+  Opening covers the realistic vector — `runc` opening the socket when a
+  container starts with it bind-mounted.
+
+Keep the file high-signal — noisy rules drown real alerts.
 
 ## Deploy
 
@@ -93,7 +114,7 @@ make falco-down    # stop
 Trigger a test alert once running:
 
 ```bash
-# opens a shell in the Falco container itself → "Shell spawned in a container"
+# opens a shell in the Falco container itself → "Interactive shell in a Barlito container"
 docker exec -it falco bash
 ```
 

@@ -6,6 +6,11 @@
 # https://github.com/falcosecurity/falco/blob/master/falco.yaml
 ################################################################################
 
+# This file REPLACES the stock /etc/falco/falco.yaml, so it must be
+# self-contained: do not load the image's /etc/falco/config.d/ snippets (they
+# only enable the container plugin, which we configure explicitly below).
+config_files: []
+
 # --- Driver -------------------------------------------------------------------
 # Modern eBPF (CO-RE): the probe is baked into the Falco binary, so there is NO
 # kernel module to compile and NO kernel headers needed on the host. Requires a
@@ -17,6 +22,39 @@ engine:
     cpus_for_each_buffer: 2
     buf_size_preset: 4
     drop_failed_exit: false
+
+# --- Container metadata (container plugin) ------------------------------------
+# Since Falco 0.44, container.* fields (name, image, ...) come from the
+# `container` plugin — without it every alert says container=<NA>. Only the
+# Docker engine is enabled, pointed at the socket mounted by
+# docker-compose.falco.yml under /host.
+load_plugins: [container]
+
+plugins:
+  - name: container
+    library_path: libcontainer.so
+    init_config:
+      label_max_len: 100
+      with_size: false
+      engines:
+        # Socket paths are container-namespace relative BEFORE the HOST_ROOT
+        # prefix — the plugin prepends /host itself (matches the mount in
+        # docker-compose.falco.yml).
+        docker:
+          enabled: true
+          sockets: ["/var/run/docker.sock"]
+        podman:
+          enabled: false
+        containerd:
+          enabled: false
+        cri:
+          enabled: false
+        lxc:
+          enabled: false
+        libvirt_lxc:
+          enabled: false
+        bpm:
+          enabled: false
 
 # --- Rules --------------------------------------------------------------------
 # Loaded in order; later files can override earlier ones. The stock rule sets
