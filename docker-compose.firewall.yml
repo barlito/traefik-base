@@ -13,8 +13,9 @@
 #
 # Default policy:
 #   - host:       allow SSH (3333/tcp), ping (rate-limited) — drop the rest
-#   - containers: allow 80,443/tcp (Traefik), 444/udp (HTTP/3),
-#                 51820/udp (WireGuard) — drop every other published port
+#   - containers: allow 80,443/tcp (Traefik), 32400/tcp (Plex), 444/udp
+#                 (HTTP/3), 51820/udp (WireGuard) — drop every other published
+#                 port
 #   - VPN clients (10.8.0.0/24) and RFC1918 sources: full access
 # A port published by mistake (a debug 5432, a game server not yet declared)
 # is therefore unreachable from the internet until explicitly allowed here.
@@ -30,10 +31,22 @@ services:
       - NET_RAW
     environment:
       - TZ=${TZ:-Europe/Paris}
+      # Plex (32400/tcp) — DOCKER-USER only, NOT the host chain. `plex_plex` is
+      # a Swarm service published in ingress mode, and its DNAT is hooked into
+      # PREROUTING unconditionally:
+      #   -A PREROUTING -m addrtype --dst-type LOCAL -j DOCKER-INGRESS
+      #   -A DOCKER-INGRESS -p tcp --dport 32400 -j DNAT --to-destination 172.18.0.2:32400
+      # The destination is rewritten to the ingress sandbox BEFORE the routing
+      # decision, so the packet is forwarded, never delivered locally — INPUT
+      # never sees port 32400. A host allow would be dead weight (dockerd's
+      # userland proxy only ever gets loopback traffic, already ACCEPTed by the
+      # `-i lo` rule).
+      # Plex's discovery ports (1900, 5353, 32410-32414/udp) stay LAN-only —
+      # they are already covered by the RFC1918 allow rules.
+      - FW_DOCKER_ALLOW_TCP=80,443,32400
       # Uncomment/adjust to override the defaults baked into the script:
       # - FW_HOST_ALLOW_TCP=3333
       # - FW_HOST_ALLOW_UDP=
-      # - FW_DOCKER_ALLOW_TCP=80,443
       # - FW_DOCKER_ALLOW_UDP=444,51820
       # - FW_VPN_SUBNET=10.8.0.0/24
       # - FW_LOG_DROPS=true

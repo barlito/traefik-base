@@ -68,8 +68,11 @@ Stopping the container **leaves the rules in place** (protection survives);
 - **Traefik host-mode ports** (80/443/444) also flow through
   `FORWARD`/`DOCKER-USER` (host mode changes the SNAT behaviour, not the DNAT
   path), so they are covered by the same allowlist.
-- **Game servers later**: add the published port to `FW_DOCKER_ALLOW_TCP/UDP`
-  in `docker-compose.firewall.yml`, `make firewall-build` + push, redeploy.
+- **Plex / game servers**: add the port to `FW_DOCKER_ALLOW_TCP/UDP` (published
+  port) or `FW_HOST_ALLOW_TCP/UDP` (`network_mode: host`) in
+  `docker-compose.firewall.yml`, then `make firewall-up`. These are container
+  env vars, so **no image rebuild is needed** — only edits to
+  `firewall/apply-firewall.sh` require `make firewall-build` + push.
 
 ## Deploy
 
@@ -96,7 +99,7 @@ make firewall-flush    # remove the rules — host back to Docker defaults
 Verify from outside (e.g. from home, NOT through the VPN):
 
 ```bash
-nmap -p 80,443,3333,5432 <server-ip>   # expect: 80,443,3333 open, anything else filtered
+nmap -p 80,443,3333,32400,5432 <server-ip>   # expect: 80,443,3333,32400 open, anything else filtered
 ```
 
 On the server itself there is no repo and no Makefile — see
@@ -116,6 +119,43 @@ Everything is an env var on the container (defaults in the script):
 | `FW_VPN_SUBNET` | `10.8.0.0/24` | trusted VPN clients |
 | `FW_LOG_DROPS` | `true` | kernel-log dropped packets (rate-limited) |
 | `FW_INTERVAL` | `60` | re-assert period in seconds |
+
+`docker-compose.firewall.yml` overrides one of them to open **Plex on
+32400/tcp**: `FW_DOCKER_ALLOW_TCP=80,443,32400`.
+
+**`DOCKER-USER` only — a host allow would be dead weight.** `ss -tlnp` shows
+dockerd listening on `*:32400`, which is misleading: `plex_plex` is a Swarm
+service published in **ingress** mode, and its DNAT is hooked into
+`PREROUTING` unconditionally.
+
+```
+-A PREROUTING -m addrtype --dst-type LOCAL -j DOCKER-INGRESS
+-A DOCKER-INGRESS -p tcp --dport 32400 -j DNAT --to-destination 172.18.0.2:32400
+```
+
+The destination is rewritten to the ingress sandbox **before** the routing
+decision, so the packet is forwarded rather than delivered locally — `INPUT`
+never sees port 32400. dockerd's userland proxy only ever gets loopback
+traffic, which the `-i lo` rule already accepts. The same reasoning applies to
+any other ingress-published port: put it in `FW_DOCKER_ALLOW_*`, never in
+`FW_HOST_ALLOW_*`.
+
+Plex's discovery ports (1900, 5353, 32410-32414/udp) are LAN-only and already
+covered by the RFC1918 allows — do not open them to the internet.
+
+Note that 32400 exposes Plex's own auth to the internet directly, with no
+Traefik/Authelia in front. Reaching it through the VPN instead needs **no
+firewall rule at all** — see below.
+
+### Testing a rule from behind the VPN does not work
+
+wg-easy masquerades VPN traffic (`WG_POST_UP` has
+`-s 10.8.0.0/24 -j MASQUERADE`) and hands out `WG_ALLOWED_IPS=0.0.0.0/0`
+(full tunnel). So while the VPN is up, *every* packet you send — including to
+the server's own public IP — reaches the firewall with an RFC1918 source and
+matches the blanket `10.0.0.0/8` / `172.16.0.0/12` allows, **whatever the
+destination port**. A successful connection from behind the VPN therefore
+proves nothing about internet exposure. Always test with the VPN **off**.
 
 IPv6 is deliberately not managed (Docker's IPv6 is disabled on this host; the
 v4 rules cover the actual traffic). If the server ever serves AAAA records,
