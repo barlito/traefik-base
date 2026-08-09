@@ -120,15 +120,28 @@ Everything is an env var on the container (defaults in the script):
 | `FW_LOG_DROPS` | `true` | kernel-log dropped packets (rate-limited) |
 | `FW_INTERVAL` | `60` | re-assert period in seconds |
 
-`docker-compose.firewall.yml` overrides two of them to open **Plex on
-32400/tcp**: `FW_HOST_ALLOW_TCP=3333,32400` and
-`FW_DOCKER_ALLOW_TCP=80,443,32400`. Both, because `plex_plex` is a Swarm
-service published in **ingress** mode: dockerd holds a host listener on
-`*:32400` *and* the traffic is DNAT'ed toward the ingress sandbox, so a packet
-may traverse `INPUT` or `DOCKER-USER` depending on whether the DNAT or the
-userland `docker-proxy` wins. Its discovery ports (1900, 5353,
-32410-32414/udp) are LAN-only and already covered by the RFC1918 allows — do
-not open them to the internet.
+`docker-compose.firewall.yml` overrides one of them to open **Plex on
+32400/tcp**: `FW_DOCKER_ALLOW_TCP=80,443,32400`.
+
+**`DOCKER-USER` only — a host allow would be dead weight.** `ss -tlnp` shows
+dockerd listening on `*:32400`, which is misleading: `plex_plex` is a Swarm
+service published in **ingress** mode, and its DNAT is hooked into
+`PREROUTING` unconditionally.
+
+```
+-A PREROUTING -m addrtype --dst-type LOCAL -j DOCKER-INGRESS
+-A DOCKER-INGRESS -p tcp --dport 32400 -j DNAT --to-destination 172.18.0.2:32400
+```
+
+The destination is rewritten to the ingress sandbox **before** the routing
+decision, so the packet is forwarded rather than delivered locally — `INPUT`
+never sees port 32400. dockerd's userland proxy only ever gets loopback
+traffic, which the `-i lo` rule already accepts. The same reasoning applies to
+any other ingress-published port: put it in `FW_DOCKER_ALLOW_*`, never in
+`FW_HOST_ALLOW_*`.
+
+Plex's discovery ports (1900, 5353, 32410-32414/udp) are LAN-only and already
+covered by the RFC1918 allows — do not open them to the internet.
 
 Note that 32400 exposes Plex's own auth to the internet directly, with no
 Traefik/Authelia in front. Reaching it through the VPN instead needs **no
