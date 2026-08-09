@@ -68,8 +68,11 @@ Stopping the container **leaves the rules in place** (protection survives);
 - **Traefik host-mode ports** (80/443/444) also flow through
   `FORWARD`/`DOCKER-USER` (host mode changes the SNAT behaviour, not the DNAT
   path), so they are covered by the same allowlist.
-- **Game servers later**: add the published port to `FW_DOCKER_ALLOW_TCP/UDP`
-  in `docker-compose.firewall.yml`, `make firewall-build` + push, redeploy.
+- **Plex / game servers**: add the port to `FW_DOCKER_ALLOW_TCP/UDP` (published
+  port) or `FW_HOST_ALLOW_TCP/UDP` (`network_mode: host`) in
+  `docker-compose.firewall.yml`, then `make firewall-up`. These are container
+  env vars, so **no image rebuild is needed** — only edits to
+  `firewall/apply-firewall.sh` require `make firewall-build` + push.
 
 ## Deploy
 
@@ -96,7 +99,7 @@ make firewall-flush    # remove the rules — host back to Docker defaults
 Verify from outside (e.g. from home, NOT through the VPN):
 
 ```bash
-nmap -p 80,443,3333,5432 <server-ip>   # expect: 80,443,3333 open, anything else filtered
+nmap -p 80,443,3333,32400,5432 <server-ip>   # expect: 80,443,3333,32400 open, anything else filtered
 ```
 
 On the server itself there is no repo and no Makefile — see
@@ -116,6 +119,17 @@ Everything is an env var on the container (defaults in the script):
 | `FW_VPN_SUBNET` | `10.8.0.0/24` | trusted VPN clients |
 | `FW_LOG_DROPS` | `true` | kernel-log dropped packets (rate-limited) |
 | `FW_INTERVAL` | `60` | re-assert period in seconds |
+
+`docker-compose.firewall.yml` overrides two of them to open **Plex on
+32400/tcp**: `FW_HOST_ALLOW_TCP=3333,32400` and
+`FW_DOCKER_ALLOW_TCP=80,443,32400`. Both, because Plex may run either in
+`network_mode: host` (→ `INPUT`) or as a published port (→ `DOCKER-USER`).
+Its discovery ports (1900, 5353, 32410-32414/udp) are LAN-only and already
+covered by the RFC1918 allows — do not open them to the internet.
+
+Note that 32400 exposes Plex's own auth to the internet directly, with no
+Traefik/Authelia in front. Reaching it through the VPN instead needs **no
+firewall rule at all** (`10.8.0.0/24` already has full access).
 
 IPv6 is deliberately not managed (Docker's IPv6 is disabled on this host; the
 v4 rules cover the actual traffic). If the server ever serves AAAA records,

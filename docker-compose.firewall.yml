@@ -12,9 +12,11 @@
 # container). To actually remove them: make firewall-flush.
 #
 # Default policy:
-#   - host:       allow SSH (3333/tcp), ping (rate-limited) — drop the rest
-#   - containers: allow 80,443/tcp (Traefik), 444/udp (HTTP/3),
-#                 51820/udp (WireGuard) — drop every other published port
+#   - host:       allow SSH (3333/tcp), Plex (32400/tcp), ping (rate-limited)
+#                 — drop the rest
+#   - containers: allow 80,443/tcp (Traefik), 32400/tcp (Plex), 444/udp
+#                 (HTTP/3), 51820/udp (WireGuard) — drop every other published
+#                 port
 #   - VPN clients (10.8.0.0/24) and RFC1918 sources: full access
 # A port published by mistake (a debug 5432, a game server not yet declared)
 # is therefore unreachable from the internet until explicitly allowed here.
@@ -30,10 +32,17 @@ services:
       - NET_RAW
     environment:
       - TZ=${TZ:-Europe/Paris}
+      # Plex (32400/tcp) is opened on BOTH attachment points on purpose: we do
+      # not control how it is deployed here. `network_mode: host` (the usual
+      # Plex setup, needed for DLNA/GDM discovery) puts it on INPUT, a published
+      # bridge/Swarm port puts it on DOCKER-USER. Same port either way, so this
+      # widens nothing beyond "32400/tcp is reachable".
+      # Plex's discovery ports (1900, 5353, 32410-32414/udp) stay LAN-only —
+      # they are already covered by the RFC1918 allow rules.
+      - FW_HOST_ALLOW_TCP=3333,32400
+      - FW_DOCKER_ALLOW_TCP=80,443,32400
       # Uncomment/adjust to override the defaults baked into the script:
-      # - FW_HOST_ALLOW_TCP=3333
       # - FW_HOST_ALLOW_UDP=
-      # - FW_DOCKER_ALLOW_TCP=80,443
       # - FW_DOCKER_ALLOW_UDP=444,51820
       # - FW_VPN_SUBNET=10.8.0.0/24
       # - FW_LOG_DROPS=true
