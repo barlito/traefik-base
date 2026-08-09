@@ -122,14 +122,27 @@ Everything is an env var on the container (defaults in the script):
 
 `docker-compose.firewall.yml` overrides two of them to open **Plex on
 32400/tcp**: `FW_HOST_ALLOW_TCP=3333,32400` and
-`FW_DOCKER_ALLOW_TCP=80,443,32400`. Both, because Plex may run either in
-`network_mode: host` (→ `INPUT`) or as a published port (→ `DOCKER-USER`).
-Its discovery ports (1900, 5353, 32410-32414/udp) are LAN-only and already
-covered by the RFC1918 allows — do not open them to the internet.
+`FW_DOCKER_ALLOW_TCP=80,443,32400`. Both, because `plex_plex` is a Swarm
+service published in **ingress** mode: dockerd holds a host listener on
+`*:32400` *and* the traffic is DNAT'ed toward the ingress sandbox, so a packet
+may traverse `INPUT` or `DOCKER-USER` depending on whether the DNAT or the
+userland `docker-proxy` wins. Its discovery ports (1900, 5353,
+32410-32414/udp) are LAN-only and already covered by the RFC1918 allows — do
+not open them to the internet.
 
 Note that 32400 exposes Plex's own auth to the internet directly, with no
 Traefik/Authelia in front. Reaching it through the VPN instead needs **no
-firewall rule at all** (`10.8.0.0/24` already has full access).
+firewall rule at all** — see below.
+
+### Testing a rule from behind the VPN does not work
+
+wg-easy masquerades VPN traffic (`WG_POST_UP` has
+`-s 10.8.0.0/24 -j MASQUERADE`) and hands out `WG_ALLOWED_IPS=0.0.0.0/0`
+(full tunnel). So while the VPN is up, *every* packet you send — including to
+the server's own public IP — reaches the firewall with an RFC1918 source and
+matches the blanket `10.0.0.0/8` / `172.16.0.0/12` allows, **whatever the
+destination port**. A successful connection from behind the VPN therefore
+proves nothing about internet exposure. Always test with the VPN **off**.
 
 IPv6 is deliberately not managed (Docker's IPv6 is disabled on this host; the
 v4 rules cover the actual traffic). If the server ever serves AAAA records,

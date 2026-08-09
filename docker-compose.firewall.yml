@@ -32,11 +32,13 @@ services:
       - NET_RAW
     environment:
       - TZ=${TZ:-Europe/Paris}
-      # Plex (32400/tcp) is opened on BOTH attachment points on purpose: we do
-      # not control how it is deployed here. `network_mode: host` (the usual
-      # Plex setup, needed for DLNA/GDM discovery) puts it on INPUT, a published
-      # bridge/Swarm port puts it on DOCKER-USER. Same port either way, so this
-      # widens nothing beyond "32400/tcp is reachable".
+      # Plex (32400/tcp) is a Swarm service published in INGRESS mode
+      # (`docker service inspect plex_plex` -> PublishMode: ingress), so dockerd
+      # holds a host listener on *:32400 AND the traffic is DNAT'ed towards the
+      # ingress sandbox. Which of INPUT / DOCKER-USER a given packet traverses
+      # depends on whether the DNAT or the userland docker-proxy wins, so both
+      # are opened. Same port either way — this widens nothing beyond
+      # "32400/tcp is reachable".
       # Plex's discovery ports (1900, 5353, 32410-32414/udp) stay LAN-only —
       # they are already covered by the RFC1918 allow rules.
       - FW_HOST_ALLOW_TCP=3333,32400
