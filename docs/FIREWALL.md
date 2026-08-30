@@ -99,7 +99,8 @@ make firewall-flush    # remove the rules — host back to Docker defaults
 Verify from outside (e.g. from home, NOT through the VPN):
 
 ```bash
-nmap -p 80,443,3333,32400,5432 <server-ip>   # expect: 80,443,3333,32400 open, anything else filtered
+nmap -p 80,443,3333,32400,2022,5432 <server-ip>   # expect: 80,443,3333,32400,2022 open, anything else filtered
+nmap -sU -p 7777,7778 <server-ip>                 # expect: open|filtered once the ARK server runs
 ```
 
 On the server itself there is no repo and no Makefile — see
@@ -120,8 +121,12 @@ Everything is an env var on the container (defaults in the script):
 | `FW_LOG_DROPS` | `true` | kernel-log dropped packets (rate-limited) |
 | `FW_INTERVAL` | `60` | re-assert period in seconds |
 
-`docker-compose.firewall.yml` overrides one of them to open **Plex on
-32400/tcp**: `FW_DOCKER_ALLOW_TCP=80,443,32400`.
+`docker-compose.firewall.yml` overrides two of them to open **Plex on
+32400/tcp**, the **Pelican wings SFTP on 2022/tcp** and **ARK: Survival
+Ascended on 7777-7778/udp** (game + peer port, peer is always game+1):
+`FW_DOCKER_ALLOW_TCP=80,443,32400,2022` /
+`FW_DOCKER_ALLOW_UDP=444,51820,7777,7778`. The wings HTTP API (8080) stays
+behind Traefik and the ASA RCON (37015) stays closed — internal use only.
 
 **`DOCKER-USER` only — a host allow would be dead weight.** `ss -tlnp` shows
 dockerd listening on `*:32400`, which is misleading: `plex_plex` is a Swarm
