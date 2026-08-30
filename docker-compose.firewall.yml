@@ -13,9 +13,10 @@
 #
 # Default policy:
 #   - host:       allow SSH (3333/tcp), ping (rate-limited) — drop the rest
-#   - containers: allow 80,443/tcp (Traefik), 32400/tcp (Plex), 444/udp
-#                 (HTTP/3), 51820/udp (WireGuard) — drop every other published
-#                 port
+#   - containers: allow 80,443/tcp (Traefik), 32400/tcp (Plex), 2022/tcp
+#                 (SFTP Pelican wings), 444/udp (HTTP/3), 51820/udp
+#                 (WireGuard), 7777-7778/udp (ARK: Survival Ascended) — drop
+#                 every other published port
 #   - VPN clients (10.8.0.0/24) and RFC1918 sources: full access
 # A port published by mistake (a debug 5432, a game server not yet declared)
 # is therefore unreachable from the internet until explicitly allowed here.
@@ -43,11 +44,17 @@ services:
       # `-i lo` rule).
       # Plex's discovery ports (1900, 5353, 32410-32414/udp) stay LAN-only —
       # they are already covered by the RFC1918 allow rules.
-      - FW_DOCKER_ALLOW_TCP=80,443,32400
+      # 2022/tcp — SFTP of Pelican wings (published in host mode by the
+      # pelican stack). The wings HTTP API (8080) stays behind Traefik, and
+      # the ASA RCON (37015) stays closed on purpose: internal use only.
+      - FW_DOCKER_ALLOW_TCP=80,443,32400,2022
+      # 7777/udp + 7778/udp — ARK: Survival Ascended (game + peer port,
+      # peer is always game+1). Published by the game containers that wings
+      # spawns as plain containers → filtered by DOCKER-USER like the rest.
+      - FW_DOCKER_ALLOW_UDP=444,51820,7777,7778
       # Uncomment/adjust to override the defaults baked into the script:
       # - FW_HOST_ALLOW_TCP=3333
       # - FW_HOST_ALLOW_UDP=
-      # - FW_DOCKER_ALLOW_UDP=444,51820
       # - FW_VPN_SUBNET=10.8.0.0/24
       # - FW_LOG_DROPS=true
       # - FW_INTERVAL=60
