@@ -19,7 +19,14 @@ http:
           X-Powered-By: ""
           Server: ""
 
-    # VPN-only access — restrict to WireGuard subnet (apply to routers with: vpn-only@file)
+    # WARNING: UNVERIFIED, likely NON-FUNCTIONAL as written. Not used by any router.
+    # wg-easy runs with WG_POST_UP "iptables -t nat -A POSTROUTING -s 10.8.0.0/24
+    # -j MASQUERADE": VPN client traffic is source-NATed to the wg-easy container
+    # address before it reaches Traefik, so Traefik most likely never sees a
+    # 10.8.0.x source and this allowlist would reject every VPN client.
+    # Before relying on it: connect through the VPN, hit a test service (e.g.
+    # traefik/whoami) behind this middleware or read ClientHost in the Traefik
+    # access log, then put the OBSERVED source range in sourceRange below.
     vpn-only:
       ipAllowList:
         sourceRange:
