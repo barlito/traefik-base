@@ -3,7 +3,7 @@
 
 services:
   traefik:
-    image: traefik:3.6
+    image: traefik:3.7
     # Publish in host mode (NOT the Swarm ingress mesh) for every environment.
     #
     # Why host mode: the ingress routing mesh SNATs every incoming connection to

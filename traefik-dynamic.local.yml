@@ -24,6 +24,9 @@ http:
       forwardAuth:
         address: http://authelia:9091/api/authz/forward-auth
         trustForwardHeader: true
+        # Cap the auth response body kept in memory (default: unlimited).
+        # Authelia answers with a few hundred bytes.
+        maxResponseBodySize: 1048576
         authResponseHeaders:
           - Remote-User
           - Remote-Groups

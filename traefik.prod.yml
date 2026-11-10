@@ -5,10 +5,17 @@ api:
 entryPoints:
   http:
     address: :80
+    http: &entrypoint-http
+      # Drop request headers whose name aliases another one (X_Auth_User or
+      # X.Auth.User for X-Auth-User). PHP/CGI/WSGI backends read them as the
+      # aliased header, which would let a client forge e.g. Remote_User past
+      # the Authelia forwardAuth. (Traefik >= 3.7.12; default is "keep".)
+      aliasHeadersStrategy: delete
     http2:
       maxConcurrentStreams: 250
   https:
     address: :443
+    http: *entrypoint-http
     http2:
       maxConcurrentStreams: 250
     http3:
@@ -16,6 +23,7 @@ entryPoints:
   # Internal-only entrypoint for Prometheus metrics (not published to the host)
   metrics:
     address: :8082
+    http: *entrypoint-http
 
 metrics:
   prometheus:

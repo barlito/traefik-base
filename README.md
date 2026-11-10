@@ -1,6 +1,6 @@
 # Traefik Base Configuration
 
-Production-ready Traefik 3.6 setup with Docker Compose overrides for local/production.
+Production-ready Traefik 3.7 setup with Docker Compose overrides for local/production.
 
 ## Features
 

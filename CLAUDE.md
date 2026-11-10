@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-This is a production-ready Traefik 3.6 reverse proxy setup using Docker Swarm with environment-specific configurations (local vs production).
+This is a production-ready Traefik 3.7 reverse proxy setup using Docker Swarm with environment-specific configurations (local vs production).
 
 **Key architectural decisions:**
 
