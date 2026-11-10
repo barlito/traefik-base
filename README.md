@@ -339,6 +339,7 @@ traefik-base/
 ├── docker-compose.wsl.yml       # Local override for WSL (bind mounts, no HTTP/3)
 ├── docker-compose.prod.yml      # Production override (Docker configs)
 ├── docker-compose.wireguard.yml # WireGuard VPN (standalone, docker compose)
+├── docker-compose.falco.yml     # Falco runtime detection (standalone, docker compose)
 ├── traefik.local.yml            # Local static config (DEBUG, no Let's Encrypt)
 ├── traefik.prod.yml             # Production static config (INFO, Let's Encrypt)
 ├── traefik-dynamic.local.yml    # Local dynamic config (no auth)
@@ -347,11 +348,13 @@ traefik-base/
 │   ├── configuration.local.yml  # Local config (debug, local domain)
 │   ├── configuration.prod.yml   # Production config (info, prod domain)
 │   └── users.yml                # User database (password hash injected by CI)
+├── falco/                    # Falco image (config + custom rules baked in)
 ├── Makefile                  # Deployment commands (auto-detects WSL/Linux)
 ├── certs/                    # Local certificates (mkcert)
 ├── docs/                     # Documentation
 │   ├── SECURITY_HEADERS.md   # Security headers explained
 │   ├── GITHUB_ACTIONS.md     # CI/CD setup guide
+│   ├── FALCO.md              # Falco runtime detection guide
 │   └── MIGRATION.md          # Migration guide
 └── scripts/
     └── generate-secrets.sh   # Secret generation helper
