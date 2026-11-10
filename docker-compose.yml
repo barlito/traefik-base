@@ -39,8 +39,6 @@ services:
       # 8080 (insecure API) is deliberately NOT published: api.insecure is
       # false in every environment, the dashboard is served through the
       # `dashboard` router on 443 (api@internal).
-    environment:
-      - ACME_EMAIL=${ACME_EMAIL:-}
     deploy:
       placement:
         constraints:

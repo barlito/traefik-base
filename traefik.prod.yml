@@ -27,7 +27,12 @@ metrics:
 certificatesResolvers:
   letsencrypt:
     acme:
-      # Email set via environment variable TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL
+      # The value below is a literal placeholder, replaced at deploy time by the
+      # deploy workflow (sed) from the ACME_EMAIL GitHub secret: the address is
+      # not committed because the repo is public. Env vars cannot be used
+      # instead: Traefik's static-config sources are mutually exclusive, so
+      # once this file exists TRAEFIK_* env vars are ignored.
+      email: '$ACME_EMAIL'
       storage: /etc/traefik/acme.json
       httpChallenge:
         entryPoint: http
