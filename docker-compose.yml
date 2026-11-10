@@ -39,8 +39,6 @@ services:
       # 8080 (insecure API) is deliberately NOT published: api.insecure is
       # false in every environment, the dashboard is served through the
       # `dashboard` router on 443 (api@internal).
-    environment:
-      - ACME_EMAIL=${ACME_EMAIL:-}
     deploy:
       placement:
         constraints:
@@ -64,7 +62,7 @@ services:
   # (the Swarm API requires a manager); it is the only service that touches
   # the real socket.
   dockerproxy:
-    image: ghcr.io/tecnativa/docker-socket-proxy:latest
+    image: ghcr.io/tecnativa/docker-socket-proxy:v0.5.0  # same digest as :latest at pin time
     environment:
       # Endpoints Traefik's Swarm provider reads to build the routing table
       - SWARM=1        # /swarm
@@ -90,12 +88,19 @@ services:
   authelia:
     image: authelia/authelia:4
     environment:
-      AUTHELIA_JWT_SECRET: ${AUTHELIA_JWT_SECRET}
+      # Renamed from the deprecated AUTHELIA_JWT_SECRET (deprecated in Authelia 4.38).
+      # The GitHub secret / .env.local variable keeps its AUTHELIA_JWT_SECRET name.
+      AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET: ${AUTHELIA_JWT_SECRET}
       AUTHELIA_SESSION_SECRET: ${AUTHELIA_SESSION_SECRET}
       AUTHELIA_STORAGE_ENCRYPTION_KEY: ${AUTHELIA_STORAGE_ENCRYPTION_KEY}
     volumes:
       - authelia_data:/data
     deploy:
+      # authelia_data is a node-local volume: keep the service on the same
+      # (manager) node, like traefik and dockerproxy.
+      placement:
+        constraints:
+          - node.role == manager
       labels:
         - traefik.enable=true
         - traefik.http.services.authelia.loadbalancer.server.port=9091

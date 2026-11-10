@@ -6,7 +6,11 @@ version: "3.8"
 
 services:
   wg-easy:
-    image: ghcr.io/wg-easy/wg-easy
+    # Pinned to the v14 line: this file uses the v14 env interface (WG_HOST,
+    # WG_DEFAULT_DNS, WG_ALLOWED_IPS, LANGUAGE, WG_POST_UP...). v15 is a
+    # breaking rewrite (settings moved to the web UI / unattended setup) and
+    # requires a migration before the tag can be bumped.
+    image: ghcr.io/wg-easy/wg-easy:14
     container_name: wg-easy
     hostname: wg-easy
     environment:

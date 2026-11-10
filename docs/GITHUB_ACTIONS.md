@@ -1,222 +1,105 @@
 # GitHub Actions Deployment
 
-Guide to automatically deploy Traefik with GitHub Actions.
+How the production stack is deployed from GitHub Actions to a single-node Docker Swarm, over `DOCKER_HOST=ssh://`.
 
 ## GitHub Configuration
 
-### Repository Variables
+Go to **Settings** -> **Secrets and variables** -> **Actions**.
 
-Go to **Settings** → **Secrets and variables** → **Actions** → **Variables** and add:
+### Repository Variables
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `SERVER_USERNAME` | SSH username | `root` or `deploy` |
-| `SERVER_HOST` | Server hostname or IP | `server.barlito.fr` or `1.2.3.4` |
-| `SERVER_PORT` | SSH port | `22` or `2222` |
+| `SERVER_USERNAME` | SSH username | `deploy` |
+| `SERVER_HOST` | Server hostname or IP (also used as `WG_HOST` for WireGuard) | `server.barlito.fr` |
+| `SERVER_PORT` | SSH port | `22` |
+| `SERVER_HOST_KEY` | Optional. Pinned SSH host key (a full `known_hosts` line) | `[1.2.3.4]:22 ssh-ed25519 AAAA...` |
+
+#### Pinning the SSH host key (`SERVER_HOST_KEY`)
+
+If `SERVER_HOST_KEY` is empty, every workflow falls back to `ssh-keyscan` at run time (trust on first use, a man-in-the-middle could be accepted) and prints a `::warning::` annotation. To pin the key:
+
+```bash
+ssh-keyscan -p <port> <host>
+```
+
+Verify the fingerprint out-of-band (for example from the server console with `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`), then store the matching `ssh-ed25519` line, unchanged, as the variable value. With a non-default port the line starts with `[host]:port`.
 
 ### Repository Secrets
 
-Go to **Settings** → **Secrets and variables** → **Actions** → **Secrets** and add:
+| Secret | Description |
+|--------|-------------|
+| `SSH_PRIVATE_KEY` | Private key (ed25519) of the deploy user on the server |
+| `DASHBOARD_HOST` | Traefik dashboard domain, e.g. `traefik.barlito.fr` |
+| `ACME_EMAIL` | Let's Encrypt account email |
+| `AUTHELIA_JWT_SECRET` | Authelia reset-password JWT secret (passed to the container as `AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET`) |
+| `AUTHELIA_SESSION_SECRET` | Authelia session secret |
+| `AUTHELIA_STORAGE_ENCRYPTION_KEY` | Authelia storage encryption key |
+| `AUTHELIA_USER_PASSWORD_HASH` | argon2 hash of the Authelia user password |
 
-| Secret | Description | Example |
-|--------|-------------|---------|
-| `SSH_PRIVATE_KEY` | SSH private key (ed25519) | Content of `~/.ssh/id_ed25519` |
-| `DASHBOARD_HOST` | Traefik dashboard domain | `traefik.barlito.fr` |
-| `DASHBOARD_AUTH` | HTTP Basic authentication | `admin:$apr1$xyz...` |
-| `ACME_EMAIL` | Let's Encrypt email | `admin@barlito.fr` |
-
-## Generating Secrets
-
-### 1. SSH_PRIVATE_KEY
-
-On your local machine:
-```bash
-# Generate a new key pair (if you don't have one)
-ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/github_actions
-
-# Copy public key to server
-ssh-copy-id -i ~/.ssh/github_actions.pub user@server.barlito.fr
-
-# Copy private key (to add to GitHub Secrets)
-cat ~/.ssh/github_actions
-```
-
-### 2. DASHBOARD_AUTH
-
-```bash
-# Install htpasswd (if not already installed)
-sudo apt install apache2-utils  # Debian/Ubuntu
-# or
-brew install httpd              # macOS
-
-# Generate hash (replace 'password' with your secure password)
-htpasswd -nb admin your_secure_password
-
-# Example output:
-# admin:$apr1$xyz123...$abc456...
-# Copy the ENTIRE line to GitHub Secrets
-```
-
-**Important**: The `$` in the hash must be escaped as `$$` in docker-compose, but NOT in GitHub Secrets!
-
-## Workflow
-
-File: `.github/workflows/deploy.yml`
-
-**Ultra-simple deployment with Docker configs**:
-- Uses `DOCKER_HOST` to connect to remote Docker daemon via SSH
-- Docker configs transfer files automatically (no rsync!)
-- Passes variables directly to `docker stack deploy` (no `.env` file)
-- `docker stack deploy` automatically updates if stack exists
-
-**How it works**:
-1. ✅ Checkout code from repository
-2. ✅ Setup SSH connection with private key
-3. ✅ Deploy with `make deploy-prod` (uses DOCKER_HOST)
-4. ✅ Verify deployment
-
-Docker handles transferring config files via the API - no file sync needed!
-
-The workflow uses the Makefile command for consistency - same command for manual and automated deployments.
-
-## Usage
-
-### Automatic Deployment (on push)
-Push to `master` branch:
-```bash
-git add .
-git commit -m "Update traefik config"
-git push origin master
-```
-
-Workflow triggers automatically and **updates** the existing stack.
-
-### Manual Deployment
-1. Go to **Actions** on GitHub
-2. Select "Deploy Traefik Stack" workflow
-3. Click **Run workflow**
-4. Select branch and click "Run workflow"
-
-Note: `docker stack deploy` automatically updates the stack if it already exists.
-
-## Deployment Structure
-
-```
-Target server: /opt/traefik/
-├── docker-compose.yml
-├── traefik.yml
-├── traefik-dynamic.prod.yml    # Used automatically
-├── Makefile
-├── certs/
-├── logs/
-└── (no .env.production file)
-```
-
-## Security
-
-### ✅ Applied Best Practices
-
-1. **Secrets never in code**: All secrets in GitHub Secrets
-2. **Dedicated SSH key**: Separate key for automated deployments
-3. **No .env committed**: `.env.production` file never in git
-4. **Ephemeral variables**: Variables passed directly
-
-### 🔒 Improving Security
-
-```yaml
-# Limit workflow to certain users
-on:
-  push:
-    branches:
-      - master
-  workflow_dispatch:
-    # Only certain users can trigger manually
-
-# Add protected environments
-jobs:
-  deploy:
-    environment:
-      name: production
-      url: https://traefik.barlito.fr
-    # Requires manual approval before deployment
-```
-
-## Docker Configs vs Bind Mounts
-
-This project uses different strategies for local and production:
-
-### Local Development (`docker-compose.local.yml`)
-```yaml
-volumes:
-  - ./traefik.local.yml:/etc/traefik/traefik.yml  # Bind mount
-  - ./logs:/var/log/traefik                        # Bind mount
-```
-**Why?** Easy to edit configs and view logs directly on your machine.
-
-### Production (`docker-compose.prod.yml`)
-```yaml
-configs:
-  traefik_static:
-    file: ./traefik.prod.yml  # Docker config
-volumes:
-  - traefik-logs:/var/log/traefik  # Docker volume
-```
-**Why?** Docker transfers configs via API (no file sync!), logs in managed volume.
-
-### Deployment Flow
-
-1. GitHub runner has `traefik.prod.yml` locally
-2. `docker stack deploy` reads the file
-3. Docker sends it to the server via DOCKER_HOST
-4. Swarm stores it and mounts in container
-
-**Zero file sync needed!** 🎉
-
-## Troubleshooting
-
-### Workflow fails with "Permission denied"
-- Verify SSH public key is on the server
-- Check permissions: `chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys`
-
-### Environment variables not interpolated
-- In docker-compose, use `${VAR}` not `$VAR`
-- Verify variables are exported before `docker stack deploy`
-
-### Dashboard inaccessible after deployment
-- Check DNS: `dig traefik.barlito.fr`
-- Verify Let's Encrypt generated certificate: `docker exec <container> ls /etc/traefik/acme.json`
-- View logs: `docker service logs traefik_traefik`
-
-## Deployment Monitoring
-
-Add notifications:
-
-```yaml
-- name: Notify on failure
-  if: failure()
-  uses: actions/github-script@v7
-  with:
-    script: |
-      github.rest.issues.create({
-        owner: context.repo.owner,
-        repo: context.repo.repo,
-        title: '❌ Traefik deployment failed',
-        body: 'Deployment failed. Check the Actions tab for details.'
-      })
-```
-
-Or integrate with Slack, Discord, etc.
-
-## Helper Script
-
-Use the provided script to generate secrets:
+Generate the values interactively with:
 
 ```bash
 ./scripts/generate-secrets.sh
 ```
 
-This will:
-- Generate `DASHBOARD_AUTH` with htpasswd
-- Collect required configuration values
-- Display formatted values ready to paste into GitHub Secrets
-- Provide next steps for completing the setup
+It generates the three Authelia secrets, the argon2 hash (using `authelia/authelia:4` in Docker), asks for the Let's Encrypt email and the dashboard host, and prints everything ready to paste. `SSH_PRIVATE_KEY` is not generated by the script:
+
+```bash
+ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/github_actions
+ssh-copy-id -i ~/.ssh/github_actions.pub user@server
+cat ~/.ssh/github_actions   # value of the SSH_PRIVATE_KEY secret
+```
+
+## Workflows
+
+All deploy workflows are manual (`workflow_dispatch`). They connect to the server through `DOCKER_HOST` and the SSH agent (`SSH_PRIVATE_KEY`), then add the server key to `known_hosts` (see `SERVER_HOST_KEY`).
+
+| Workflow | File | When to run |
+|----------|------|-------------|
+| Deploy Traefik Stack | `deploy.yml` | Changes to Traefik, Authelia or stack config. Runs `make deploy-prod`, then starts WireGuard. Optional `undeploy` input: `make undeploy` first for a clean restart. |
+| Deploy WireGuard VPN | `deploy-vpn.yml` | Only the wg-easy container needs (re)starting (`docker compose -f docker-compose.wireguard.yml up -d`). |
+| Build fail2ban image | `build-fail2ban.yml` | Builds and pushes `ghcr.io/barlito/traefik-base-fail2ban`. Runs on push to `master` touching `fail2ban/**`, or manually. |
+| Deploy fail2ban | `deploy-fail2ban.yml` | After the build workflow, to pull and restart fail2ban on the server. |
+| Build firewall image | `build-firewall.yml` | Builds and pushes `ghcr.io/barlito/traefik-base-firewall`. Runs on push to `master` touching `firewall/**`, or manually. |
+| Deploy firewall | `deploy-firewall.yml` | After the build workflow, to pull and restart the firewall container on the server. |
+
+Typical order: change under `fail2ban/` or `firewall/` -> build workflow (automatic on merge) -> matching deploy workflow.
+
+The GHCR packages `traefik-base-fail2ban` and `traefik-base-firewall` must be set to **public** (Packages -> Package settings -> Change visibility) after the first push, so the server can pull them without credentials.
+
+## How deploy.yml works
+
+1. Checkout, SSH agent setup, known hosts.
+2. **Render config placeholders**: two `sed` commands replace literal placeholders in the checked-out files (on the runner only, nothing is committed):
+   - `$AUTHELIA_USER_PASSWORD_HASH` in `authelia/users.yml`
+   - `$ACME_EMAIL` in `traefik.prod.yml`
+
+   This keeps secrets and personal data out of the public repo. The ACME email goes through a placeholder because Traefik's static configuration sources are mutually exclusive: once `/etc/traefik/traefik.yml` exists, `TRAEFIK_*` environment variables are ignored.
+3. Optional `make undeploy`.
+4. `make deploy-prod`. It aborts if either placeholder is still present in the files (for example a manual run without rendering).
+5. `docker compose -f docker-compose.wireguard.yml up -d`, then a verification step (`docker service ls`, `docker service ps`, wg-easy status).
+
+Other values (`DASHBOARD_HOST`, `ACME_EMAIL`, Authelia secrets) are passed as environment variables to `docker stack deploy`; no `.env` file is created.
+
+## Docker configs and CONFIG_VERSION
+
+In production, config files (`traefik.prod.yml`, `traefik-dynamic.prod.yml`, `authelia/configuration.prod.yml`, `authelia/users.yml`) are sent to the server as Docker configs through the Docker API: no file sync is needed. Docker configs are immutable, so `make deploy-prod` computes `CONFIG_VERSION` (a short sha1 of the four files, after rendering) and the config names are suffixed with it (`traefik_static_<version>`...). Any content change creates new config objects and Swarm does a rolling update instead of failing with "only updates to Labels are allowed".
+
+Locally (`make deploy-local`) the files are bind-mounted instead, for easy iteration.
+
+## Troubleshooting
+
+### "Permission denied" during SSH
+- Check the public key is in the server's `~/.ssh/authorized_keys` for `SERVER_USERNAME`.
+- Check permissions: `chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys`.
+
+### "Host key verification failed"
+- `SERVER_HOST_KEY` does not match the server (key rotated, wrong port in the `[host]:port` prefix). Re-run `ssh-keyscan -p <port> <host>` and update the variable.
+
+### `make deploy-prod` aborts about a placeholder
+- The file still contains `$ACME_EMAIL` or `$AUTHELIA_USER_PASSWORD_HASH`. Run it through the deploy workflow, or render the placeholders yourself (and do not commit the result).
+
+### Dashboard inaccessible after deployment
+- Check DNS for `DASHBOARD_HOST`.
+- Check the logs: `docker service logs traefik_traefik` (ACME account registration, certificate issuance) and `docker service logs traefik_authelia`.

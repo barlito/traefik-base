@@ -67,6 +67,12 @@ endif
 
 .PHONY: deploy-prod
 deploy-prod:
+	@if grep -qF '$$ACME_EMAIL' traefik.prod.yml; then \
+		echo "❌ traefik.prod.yml still contains the \$$ACME_EMAIL placeholder: render it first (the deploy workflow does it with sed)."; exit 1; \
+	fi
+	@if grep -qF '$$AUTHELIA_USER_PASSWORD_HASH' authelia/users.yml; then \
+		echo "❌ authelia/users.yml still contains the \$$AUTHELIA_USER_PASSWORD_HASH placeholder: render it first (the deploy workflow does it with sed)."; exit 1; \
+	fi
 	@echo "🚀 Deploying Traefik (production)..."
 	@export CONFIG_VERSION=$$(cat traefik.prod.yml traefik-dynamic.prod.yml authelia/configuration.prod.yml authelia/users.yml | sha1sum | cut -c1-10) && \
 		docker stack deploy -c docker-compose.yml -c docker-compose.prod.yml $(stack_name)

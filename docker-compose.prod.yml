@@ -24,7 +24,6 @@ services:
   traefik:
     environment:
       - ENV=prod
-      - TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL=${ACME_EMAIL}
     deploy:
       labels:
         - traefik.http.routers.dashboard.middlewares=authelia-auth@file,security-headers@file

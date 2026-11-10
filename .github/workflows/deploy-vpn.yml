@@ -21,9 +21,19 @@ jobs:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Add server to known hosts
+        env:
+          SERVER_HOST_KEY: ${{ vars.SERVER_HOST_KEY }}
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_PORT: ${{ vars.SERVER_PORT }}
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+          if [ -n "$SERVER_HOST_KEY" ]; then
+            # Pinned host key (full known_hosts line, e.g. "[1.2.3.4]:3333 ssh-ed25519 AAAA...")
+            printf '%s\n' "$SERVER_HOST_KEY" >> ~/.ssh/known_hosts
+          else
+            echo "::warning::SERVER_HOST_KEY repository variable is not set: the SSH host key is NOT pinned (trust on first use via ssh-keyscan, MITM-able)."
+            ssh-keyscan -p "$SERVER_PORT" -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          fi
 
       - name: Deploy WireGuard
         run: docker compose -f docker-compose.wireguard.yml up -d
