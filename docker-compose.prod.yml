@@ -1,5 +1,3 @@
-version: "3.8"
-
 # Production override - uses Docker configs (no rsync needed!)
 
 # Config names are suffixed with CONFIG_VERSION (a hash of the config files,

@@ -1,5 +1,3 @@
-version: "3.8"
-
 # Local override for Linux - uses bind mounts with HTTP/3 support
 # For WSL, use docker-compose.wsl.yml instead
 

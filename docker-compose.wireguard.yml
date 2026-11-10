@@ -1,5 +1,3 @@
-version: "3.8"
-
 # WireGuard VPN - runs outside Swarm (requires cap_add)
 # Start with: make wireguard-up
 # Stop with: make wireguard-down
