@@ -15,6 +15,7 @@ Production-ready Traefik 3.0 setup with Docker Compose overrides for local/produ
 - 🔧 **Bind mounts for local** (easy config editing)
 - 🔒 **WireGuard VPN** via wg-easy (web UI, QR codes, split tunnel)
 - 🔥 **Default-deny firewall** for host AND containers (INPUT + DOCKER-USER)
+- 🦅 **Falco runtime threat detection** (modern eBPF, JSON alerts to Loki)
 
 ## Quick Start
 
@@ -217,6 +218,29 @@ policy details and how to open a port for a future game server, and
 [docs/SERVER_OPS.md](docs/SERVER_OPS.md) for the on-server cheatsheet
 (verify the firewall, list banned IPs — raw commands, no Makefile).
 
+## Falco (runtime threat detection)
+
+[Falco](https://falco.org/) watches kernel syscalls via **modern eBPF** and
+alerts on suspicious behaviour (shell in a container, sensitive file reads,
+privilege escalation, unexpected outbound connections…). It **alerts only, never
+bans** — a detection layer complementary to fail2ban.
+
+> Like WireGuard, Falco runs as a standalone container (`docker compose`)
+> because it needs host kernel access / privileges that Docker Swarm services
+> don't support. Its config + rules are baked into a custom GHCR image; alerts
+> are emitted as JSON on stdout and collected into Loki by the observability
+> stack's Alloy agent. Requires a host kernel **>= 5.8 with BTF**.
+
+```bash
+make falco-build   # build the image locally
+make falco-up      # pull + start
+make falco-logs    # follow alerts
+make falco-down    # stop
+```
+
+See [docs/FALCO.md](docs/FALCO.md) for the driver choice, alerting, custom
+rules, and the Falcosidekick evolution.
+
 ## Security
 
 Production deployment includes:
@@ -315,6 +339,7 @@ traefik-base/
 ├── docker-compose.wsl.yml       # Local override for WSL (bind mounts, no HTTP/3)
 ├── docker-compose.prod.yml      # Production override (Docker configs)
 ├── docker-compose.wireguard.yml # WireGuard VPN (standalone, docker compose)
+├── docker-compose.falco.yml     # Falco runtime detection (standalone, docker compose)
 ├── traefik.local.yml            # Local static config (DEBUG, no Let's Encrypt)
 ├── traefik.prod.yml             # Production static config (INFO, Let's Encrypt)
 ├── traefik-dynamic.local.yml    # Local dynamic config (no auth)
@@ -323,11 +348,13 @@ traefik-base/
 │   ├── configuration.local.yml  # Local config (debug, local domain)
 │   ├── configuration.prod.yml   # Production config (info, prod domain)
 │   └── users.yml                # User database (password hash injected by CI)
+├── falco/                    # Falco image (config + custom rules baked in)
 ├── Makefile                  # Deployment commands (auto-detects WSL/Linux)
 ├── certs/                    # Local certificates (mkcert)
 ├── docs/                     # Documentation
 │   ├── SECURITY_HEADERS.md   # Security headers explained
 │   ├── GITHUB_ACTIONS.md     # CI/CD setup guide
+│   ├── FALCO.md              # Falco runtime detection guide
 │   └── MIGRATION.md          # Migration guide
 └── scripts/
     └── generate-secrets.sh   # Secret generation helper

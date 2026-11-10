@@ -1,0 +1,159 @@
+################################################################################
+# Production Falco rules for traefik-base
+# (baked into the image at /etc/falco/rules.d/custom-rules.yaml).
+#
+# These sit ON TOP of Falco's stock rule sets and are tailored to this stack:
+# Traefik (Swarm), Authelia, docker-socket-proxy, WireGuard, fail2ban, Falco.
+# Keep this file small and high-signal — noisy rules drown the real alerts.
+################################################################################
+
+- list: barlito_shells
+  items: [bash, sh, ash, zsh, dash, ksh, csh, tcsh, fish]
+
+# Nothing should ever install software at runtime on this host: every image is
+# built in CI and pulled. A package manager running in prod = live tampering.
+- list: barlito_pkg_managers
+  items: [apt, apt-get, dpkg, apk, dnf, yum, rpm, pip, pip3, npm]
+
+# The ONLY containers allowed to touch the Docker socket:
+#  - docker-socket-proxy: its whole purpose (read-only gate to the Swarm API)
+#  - falco itself: container metadata enrichment
+#  - grafana/alloy (observability-stack): container log discovery
+# Traefik is deliberately NOT here — it goes through the socket-proxy over TCP
+# since PR #20, so a direct socket access from it would mean compromise.
+- list: barlito_docker_sock_allowed_images
+  items:
+    [
+      ghcr.io/tecnativa/docker-socket-proxy,
+      ghcr.io/barlito/traefik-base-falco,
+      grafana/alloy,
+    ]
+
+# Falco only fires the FIRST matching rule per event (rule_matching: first),
+# and the stock "Terminal shell in container" shadows our shell rule below.
+# Disable the stock one — ours carries the container/image fields we want.
+- rule: Terminal shell in container
+  enabled: false
+  override:
+    enabled: replace
+
+# 1) An interactive shell (with a TTY) was opened inside a container. On this
+#    host every workload is a container and we never `docker exec` a shell in
+#    normal operation, so this is an operator debugging by hand — or an
+#    attacker who got in. The TTY condition keeps entrypoint scripts and
+#    healthchecks (no TTY) quiet.
+- rule: Interactive shell in a Barlito container
+  desc: >
+    An interactive shell (bash, sh, ...) with a TTY was executed inside a
+    container. Expected only during manual debugging; otherwise investigate.
+  condition: >
+    spawned_process
+    and container
+    and proc.name in (barlito_shells)
+    and proc.tty != 0
+  output: >
+    Interactive shell opened in a container
+    (user=%user.name uid=%user.uid shell=%proc.name parent=%proc.pname
+     cmdline=%proc.cmdline container=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [container, shell, mitre_execution, barlito]
+
+# 2) A package manager ran inside a container. Images are immutable and built
+#    in CI; installing software at runtime is a classic post-exploitation move
+#    (dropping tools on a live target).
+- rule: Package manager run in a Barlito container
+  desc: >
+    A package manager (apt, apk, pip, ...) was executed inside a running
+    container. Images are built in CI — runtime installs are never expected.
+  condition: >
+    spawned_process
+    and container
+    and proc.name in (barlito_pkg_managers)
+  output: >
+    Package manager executed in a container
+    (proc=%proc.name cmdline=%proc.cmdline user=%user.name parent=%proc.pname
+     container=%container.name image=%container.image.repository)
+  priority: ERROR
+  tags: [container, software_mgmt, mitre_persistence, barlito]
+
+# 3) Something other than Traefik read the ACME store. acme.json holds the
+#    Let's Encrypt account key and every TLS private key of the stack —
+#    exfiltrating it allows impersonating all *.barlito.fr services.
+- rule: Traefik ACME store read by another process
+  desc: >
+    A process other than the traefik binary opened acme.json (Let's Encrypt
+    account + TLS private keys) for reading.
+  condition: >
+    open_read
+    and fd.name endswith /acme.json
+    and not proc.name = traefik
+  output: >
+    ACME store (TLS private keys) read by a non-traefik process
+    (file=%fd.name proc=%proc.name cmdline=%proc.cmdline user=%user.name
+     container=%container.name image=%container.image.repository)
+  priority: CRITICAL
+  tags: [filesystem, secrets, mitre_credential_access, barlito]
+
+# 4) A container touched the Docker socket file without being on the
+#    allowlist. On a Swarm manager the socket is root on the whole cluster.
+#    This fires when the socket is OPENED — notably by runc when a container
+#    starts with the socket bind-mounted, i.e. the realistic attack vector
+#    (a workload can't mount the socket into itself without API access).
+#    connect() is deliberately NOT matched: Falco's unix-socket name
+#    resolution returns stale names (kernel struct reuse), which floods this
+#    rule with false positives from FrankenPHP worker sockets.
+- rule: Docker socket accessed by unexpected container
+  desc: >
+    A container not on the allowlist (socket-proxy, falco, alloy) opened the
+    Docker daemon socket (e.g. it was started with the socket bind-mounted).
+  condition: >
+    evt.type in (open, openat, openat2)
+    and fd.name endswith /docker.sock
+    and container
+    and not container.image.repository in (barlito_docker_sock_allowed_images)
+  output: >
+    Docker socket accessed from a non-allowlisted container
+    (socket=%fd.name proc=%proc.name cmdline=%proc.cmdline user=%user.name
+     container=%container.name image=%container.image.repository)
+  priority: CRITICAL
+  tags: [container, docker_sock, mitre_privilege_escalation, barlito]
+
+# 5) The docker-socket-proxy made an OUTBOUND network connection. It only ever
+#    (a) accepts inbound requests from Traefik and (b) talks to the local unix
+#    socket — an outbound TCP/UDP connection from it can only be Swarm API
+#    data being exfiltrated.
+- rule: Outbound connection from docker-socket-proxy
+  desc: >
+    The docker-socket-proxy container initiated an outbound network
+    connection. It should only accept inbound and use the local unix socket.
+  condition: >
+    outbound
+    and container.image.repository = ghcr.io/tecnativa/docker-socket-proxy
+  output: >
+    Outbound connection from the docker-socket-proxy
+    (connection=%fd.name proc=%proc.name cmdline=%proc.cmdline
+     container=%container.name)
+  priority: CRITICAL
+  tags: [network, exfiltration, mitre_exfiltration, barlito]
+
+# 6) A process inside a container read a well-known secret/credential file.
+#    Catches attempts to exfiltrate SSH keys, /etc/shadow or cloud credentials.
+- rule: Sensitive credential file read in a Barlito container
+  desc: >
+    A process inside a container opened a sensitive credential file
+    (private keys, /etc/shadow, cloud creds).
+  condition: >
+    open_read
+    and container
+    and (fd.name in (/etc/shadow, /etc/sudoers)
+         or fd.name startswith /root/.ssh/
+         or fd.name startswith /root/.aws/
+         or fd.name endswith id_rsa
+         or fd.name endswith id_ed25519)
+    and not proc.name in (sshd, sudo, su)
+  output: >
+    Sensitive credential file read in a container
+    (file=%fd.name proc=%proc.name cmdline=%proc.cmdline user=%user.name
+     container=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [container, filesystem, secrets, mitre_credential_access, barlito]
