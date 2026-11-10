@@ -167,7 +167,10 @@ firewall-status:
 	@docker exec firewall sh -c ' \
 		IPT=iptables-nft; iptables-nft -t nat -S DOCKER >/dev/null 2>&1 || IPT=iptables-legacy; \
 		echo "--- INPUT (host) ---"; $$IPT -L BARLITO-FW-INPUT -v -n; \
-		echo "--- DOCKER-USER (containers) ---"; $$IPT -L BARLITO-FW-DOCKER -v -n'
+		echo "--- DOCKER-USER (containers) ---"; $$IPT -L BARLITO-FW-DOCKER -v -n; \
+		IPT6=ip6tables-nft; [ "$$IPT" = iptables-legacy ] && IPT6=ip6tables-legacy; \
+		echo "--- IPv6 INPUT ---"; $$IPT6 -L BARLITO-FW-INPUT -v -n 2>/dev/null || echo "(no IPv6 rules)"; \
+		echo "--- IPv6 DOCKER-USER ---"; $$IPT6 -L BARLITO-FW-DOCKER -v -n 2>/dev/null || echo "(no IPv6 rules)"'
 
 .PHONY: firewall-logs
 firewall-logs:

@@ -7,8 +7,9 @@
 # Config (jails + filter) is BAKED into the image (see fail2ban/Dockerfile),
 # built and pushed to GHCR by .github/workflows/build-fail2ban.yml. The server
 # only pulls & runs it — no repo files land on disk. Only the ban database is
-# persisted, on a named volume mounted at /data/db (does not shadow the baked
-# /data/jail.d and /data/filter.d).
+# persisted, on a named volume mounted at /data/db. The config is baked in
+# /opt/fail2ban-config and synced into /data/{jail.d,filter.d} at every start
+# (the base image's anonymous /data volume survives container recreation).
 #
 # Host network + NET_ADMIN let the `route` (blackhole) ban action drop offenders
 # at the routing layer for every service at once (SSH, Traefik, game servers).

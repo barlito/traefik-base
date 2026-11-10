@@ -120,6 +120,7 @@ Everything is an env var on the container (defaults in the script):
 | `FW_VPN_SUBNET` | `10.8.0.0/24` | trusted VPN clients |
 | `FW_LOG_DROPS` | `true` | kernel-log dropped packets (rate-limited) |
 | `FW_INTERVAL` | `60` | re-assert period in seconds |
+| `FW_IPV6` | `true` | mirror the policy on IPv6 with `ip6tables` (see [IPv6](#ipv6)) |
 
 `docker-compose.firewall.yml` overrides two of them to open **Plex on
 32400/tcp**, the **Pelican wings SFTP on 2022/tcp** and **ARK: Survival
@@ -162,7 +163,26 @@ matches the blanket `10.0.0.0/8` / `172.16.0.0/12` allows, **whatever the
 destination port**. A successful connection from behind the VPN therefore
 proves nothing about internet exposure. Always test with the VPN **off**.
 
-IPv6 is deliberately not managed (Docker's IPv6 is disabled on this host; the
-v4 rules cover the actual traffic). If the server ever serves AAAA records,
-add an `ip6tables` pass — do NOT blanket-drop v6 `INPUT` before checking what
-uses it, that's a remote-hands ticket waiting to happen.
+## IPv6
+
+The host has a public IPv6 address, and dockerd's userland proxy listens on
+`[::]` for **every** published port — so the same policy is mirrored with
+`ip6tables` (`FW_IPV6=true`, the default). Without it, a port dropped by the
+v4 rules (e.g. a database published in host mode) stays reachable over IPv6.
+
+Differences with the v4 ruleset:
+
+- Published ports are filtered in `INPUT` too: Docker's IPv6 NAT is off on the
+  default networks, so v6 traffic to a published port is delivered locally to
+  the userland proxy instead of being DNAT'ed and forwarded. `DOCKER-USER`
+  carries the same allowlist for IPv6-enabled networks.
+- ICMPv6 is always accepted (neighbour discovery, router advertisements and
+  path-MTU depend on it).
+- "Private" sources are `fc00::/7` (ULA) and `fe80::/10` (link-local).
+- Dropped packets are logged with the `FW6-DROP-HOST: ` / `FW6-DROP-DOCKER: `
+  prefixes.
+
+Set `FW_IPV6=false` to leave IPv6 untouched (then run `make firewall-flush`
+and `make firewall-up` to drop the rules of a previous run). Test from an
+IPv6-capable machine: `nc -6 -zv <server-v6> 5432` must time out,
+`nc -6 -zv <server-v6> 3333` must connect.
