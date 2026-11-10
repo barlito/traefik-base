@@ -1,14 +1,11 @@
 stack_name=traefik
 
-# Detect WSL environment
-IS_WSL := $(shell grep -qi microsoft /proc/version 2>/dev/null && echo "true" || echo "false")
-
 .PHONY: help
 help:
 	@echo "Traefik Stack Management"
 	@echo ""
 	@echo "Usage:"
-	@echo "  make deploy-local    - Deploy local (auto-detects WSL vs Linux)"
+	@echo "  make deploy-local    - Deploy local (bind mounts, HTTP/3 on 444/UDP)"
 	@echo "  make deploy-prod     - Deploy production (Docker configs, Let's Encrypt)"
 	@echo "  make undeploy        - Remove the stack"
 	@echo "  make logs            - Follow traefik logs (via docker service logs)"
@@ -28,24 +25,10 @@ help:
 	@echo "  make firewall-status - Show the firewall chains and counters"
 	@echo "  make firewall-logs   - Follow firewall logs"
 	@echo ""
-ifeq ($(IS_WSL),true)
-	@echo "🔍 WSL detected - will use docker-compose.wsl.yml (HTTP/3 on 444/UDP)"
-else
-	@echo "🔍 Linux detected - will use docker-compose.local.yml (HTTP/3 on 444/UDP)"
-endif
-	@echo ""
-
-ifeq ($(IS_WSL),true)
-LOCAL_OVERRIDE := docker-compose.wsl.yml
-LOCAL_PLATFORM := WSL
-else
-LOCAL_OVERRIDE := docker-compose.local.yml
-LOCAL_PLATFORM := Linux
-endif
 
 .PHONY: deploy-local
 deploy-local:
-	@echo "📦 Deploying Traefik (local on $(LOCAL_PLATFORM), HTTP/3 on 444/UDP)..."
+	@echo "📦 Deploying Traefik (local, HTTP/3 on 444/UDP)..."
 	@if [ ! -f .env.local ]; then \
 		echo "⚠️  .env.local not found, creating from .env.example..."; \
 		cp .env.example .env.local; \
@@ -61,7 +44,7 @@ deploy-local:
 			fi; \
 		done && \
 		sed "s|\$$AUTHELIA_USER_PASSWORD_HASH|$$AUTHELIA_USER_PASSWORD_HASH|" authelia/users.yml > authelia/users.local.yml && \
-		docker stack deploy -c docker-compose.yml -c $(LOCAL_OVERRIDE) $(stack_name)
+		docker stack deploy -c docker-compose.yml -c docker-compose.local.yml $(stack_name)
 	@echo "✅ Deployed!"
 	@echo "📊 Dashboard: https://traefik.local.barlito.fr"
 	@echo "🔐 Authelia: https://auth.local.barlito.fr"

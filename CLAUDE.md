@@ -8,8 +8,8 @@ This is a production-ready Traefik 3.6 reverse proxy setup using Docker Swarm wi
 
 **Key architectural decisions:**
 
-1. **Docker Compose override pattern**: Base config (`docker-compose.yml`) + environment-specific overrides (`docker-compose.{local,wsl,prod}.yml`). Local and WSL overrides are now functionally identical (kept so the Makefile can pick one per platform).
-2. **Dual static configs**: `traefik.local.yml` (DEBUG, mkcert certs, no access log) vs `traefik.prod.yml` (INFO, Let's Encrypt). Application logs go to stdout; in prod the JSON access log (4xx/5xx only) is written to `/var/log/traefik/access.log` on the host (bind mount) for fail2ban.
+1. **Docker Compose override pattern**: Base config (`docker-compose.yml`) + environment-specific overrides (`docker-compose.{local,prod}.yml`). Linux and WSL share the same local override.
+2. **Dual static configs**: `traefik.local.yml` (DEBUG, self-signed cert committed in `certs/`, no access log) vs `traefik.prod.yml` (INFO, Let's Encrypt). Application logs go to stdout; in prod the JSON access log (4xx/5xx only) is written to `/var/log/traefik/access.log` on the host (bind mount) for fail2ban.
 3. **Host-mode publishing everywhere**: ports are published in host mode from the base compose (no ingress mesh SNAT, real client IP preserved). HTTP/3 is on 444/UDP in every environment, not 443/UDP, because Docker Swarm cannot publish TCP+UDP on the same port number (even in host mode).
 4. **docker-socket-proxy**: Traefik's Swarm provider talks to the read-only `dockerproxy` service over `tcp://dockerproxy:2375`; the Docker socket is not mounted into Traefik.
 5. **Production uses Docker configs**: Config files transferred via Docker API, no rsync needed (names suffixed with `CONFIG_VERSION`, a hash computed by `make deploy-prod`)
@@ -23,7 +23,7 @@ Run `make help` for the full list.
 
 ```bash
 # Traefik stack
-make deploy-local        # auto-detects WSL vs Linux
+make deploy-local        # local (Linux and WSL)
 make deploy-prod         # production (manual or via GitHub Actions)
 make undeploy            # remove the stack
 make logs                # follow Traefik service logs
