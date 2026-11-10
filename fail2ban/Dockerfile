@@ -20,7 +20,9 @@ RUN apk add --no-cache logrotate \
 
 COPY logrotate.d/ /etc/logrotate.d/
 COPY entrypoint-wrapper.sh /entrypoint-wrapper.sh
-RUN chmod +x /entrypoint-wrapper.sh
+# logrotate skips any config writable by group/others: force 0644 so a local
+# build under umask 002 (make fail2ban-build) behaves like the CI build.
+RUN chmod +x /entrypoint-wrapper.sh && chmod 0644 /etc/logrotate.d/traefik-access
 
 COPY jail.d/ /data/jail.d/
 COPY filter.d/ /data/filter.d/

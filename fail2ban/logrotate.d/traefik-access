@@ -8,6 +8,9 @@
     size 50M
     rotate 4
     copytruncate
+    # alpine's global conf sets dateext: a 2nd rotation the same day would reuse
+    # the first one's filename and be skipped. Numeric suffixes avoid that.
+    nodateext
     compress
     missingok
     notifempty
