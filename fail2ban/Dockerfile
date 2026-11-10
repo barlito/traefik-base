@@ -8,8 +8,7 @@
 # INSIDE the image, the server only pulls & runs it.
 #
 # The ban database is kept OUT of the image on a named volume mounted at
-# /data/db (see docker-compose.fail2ban.yml), which does not shadow the baked
-# /data/jail.d and /data/filter.d.
+# /data/db (see docker-compose.fail2ban.yml).
 FROM crazymax/fail2ban:1.1.0
 
 # logrotate for the Traefik access log (nothing else rotates it: it lives on a
@@ -24,8 +23,13 @@ COPY entrypoint-wrapper.sh /entrypoint-wrapper.sh
 # build under umask 002 (make fail2ban-build) behaves like the CI build.
 RUN chmod +x /entrypoint-wrapper.sh && chmod 0644 /etc/logrotate.d/traefik-access
 
-COPY jail.d/ /data/jail.d/
-COPY filter.d/ /data/filter.d/
+# The base image declares `VOLUME /data`, and `docker compose up` carries that
+# anonymous volume over from the previous container on every recreate — so
+# files baked directly into /data are only ever seen by the FIRST container
+# (prod kept running the first jail.local for months). Bake the config outside
+# the volume; entrypoint-wrapper.sh syncs it into /data on every start.
+COPY jail.d/ /opt/fail2ban-config/jail.d/
+COPY filter.d/ /opt/fail2ban-config/filter.d/
 
 # Setting ENTRYPOINT resets the inherited CMD — redeclare the stock one.
 ENTRYPOINT ["/entrypoint-wrapper.sh"]
