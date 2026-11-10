@@ -29,41 +29,43 @@ help:
 	@echo "  make firewall-logs   - Follow firewall logs"
 	@echo ""
 ifeq ($(IS_WSL),true)
-	@echo "🔍 WSL detected - will use docker-compose.wsl.yml (no HTTP/3)"
+	@echo "🔍 WSL detected - will use docker-compose.wsl.yml (HTTP/3 on 444/UDP)"
 else
-	@echo "🔍 Linux detected - will use docker-compose.local.yml (with HTTP/3)"
+	@echo "🔍 Linux detected - will use docker-compose.local.yml (HTTP/3 on 444/UDP)"
 endif
 	@echo ""
 
+ifeq ($(IS_WSL),true)
+LOCAL_OVERRIDE := docker-compose.wsl.yml
+LOCAL_PLATFORM := WSL
+else
+LOCAL_OVERRIDE := docker-compose.local.yml
+LOCAL_PLATFORM := Linux
+endif
+
 .PHONY: deploy-local
 deploy-local:
-ifeq ($(IS_WSL),true)
-	@echo "📦 Deploying Traefik (local on WSL - no HTTP/3)..."
+	@echo "📦 Deploying Traefik (local on $(LOCAL_PLATFORM), HTTP/3 on 444/UDP)..."
 	@if [ ! -f .env.local ]; then \
-		echo "⚠️  .env.local not found, creating from example..."; \
+		echo "⚠️  .env.local not found, creating from .env.example..."; \
 		cp .env.example .env.local; \
+		echo "❌ .env.local created: fill in the empty AUTHELIA_* values (generation commands are in the file's comments), then re-run 'make deploy-local'."; \
+		exit 1; \
 	fi
 	@set -a && . ./.env.local && set +a && \
+		for v in AUTHELIA_JWT_SECRET AUTHELIA_SESSION_SECRET AUTHELIA_STORAGE_ENCRYPTION_KEY AUTHELIA_USER_PASSWORD_HASH; do \
+			eval "val=\$$$$v"; \
+			if [ -z "$$val" ]; then \
+				echo "❌ $$v is empty in .env.local: fill it in (generation commands are in the file's comments), then re-run 'make deploy-local'."; \
+				exit 1; \
+			fi; \
+		done && \
 		sed "s|\$$AUTHELIA_USER_PASSWORD_HASH|$$AUTHELIA_USER_PASSWORD_HASH|" authelia/users.yml > authelia/users.local.yml && \
-		docker stack deploy -c docker-compose.yml -c docker-compose.wsl.yml $(stack_name)
+		docker stack deploy -c docker-compose.yml -c $(LOCAL_OVERRIDE) $(stack_name)
 	@echo "✅ Deployed!"
 	@echo "📊 Dashboard: https://traefik.local.barlito.fr"
 	@echo "🔐 Authelia: https://auth.local.barlito.fr"
-	@echo "ℹ️  HTTP/3 disabled (WSL limitation)"
-else
-	@echo "📦 Deploying Traefik (local on Linux - with HTTP/3)..."
-	@if [ ! -f .env.local ]; then \
-		echo "⚠️  .env.local not found, creating from example..."; \
-		cp .env.example .env.local; \
-	fi
-	@set -a && . ./.env.local && set +a && \
-		sed "s|\$$AUTHELIA_USER_PASSWORD_HASH|$$AUTHELIA_USER_PASSWORD_HASH|" authelia/users.yml > authelia/users.local.yml && \
-		docker stack deploy -c docker-compose.yml -c docker-compose.local.yml $(stack_name)
-	@echo "✅ Deployed!"
-	@echo "📊 Dashboard: https://traefik.local.barlito.fr"
-	@echo "🔐 Authelia: https://auth.local.barlito.fr"
-	@echo "✅ HTTP/3 enabled on port 443/UDP"
-endif
+	@echo "✅ HTTP/3 enabled on port 444/UDP"
 
 .PHONY: deploy-prod
 deploy-prod:
