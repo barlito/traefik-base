@@ -1,5 +1,3 @@
-version: "3.8"
-
 # WSL override - port publishing (host mode) is inherited from the base
 # docker-compose.yml, which now uses host mode for every environment.
 

@@ -1,6 +1,6 @@
 # Traefik Base Configuration
 
-Production-ready Traefik 3.0 setup with Docker Compose overrides for local/production.
+Production-ready Traefik 3.6 setup with Docker Compose overrides for local/production.
 
 ## Features
 
@@ -9,7 +9,9 @@ Production-ready Traefik 3.0 setup with Docker Compose overrides for local/produ
 - 🛡️ Security headers (HSTS, X-Frame-Options, CSP, etc.)
 - 🔐 Secure dashboard with Authelia (forwardAuth in production)
 - 📜 Let's Encrypt automatic certificates
-- 📊 Structured JSON logs to stdout (ready for Loki/Fluentd)
+- 📊 Structured JSON logs (app log on stdout, ready for Loki/Fluentd; prod access log in a host file for fail2ban)
+- 🔌 **Docker socket proxy**: Traefik reaches the Swarm API through a read-only `dockerproxy`, the socket is never mounted into Traefik
+- 🚫 **fail2ban** at host level (bans on the Traefik access log)
 - 🐧 **Auto-detection**: WSL vs Linux (automatic in `make deploy-local`)
 - 📦 **Docker Configs for prod** (no file sync needed!)
 - 🔧 **Bind mounts for local** (easy config editing)
@@ -35,8 +37,13 @@ make deploy-local
 Dashboard: https://traefik.local.barlito.fr (no authentication required)
 
 **Auto-detection**: The Makefile automatically detects if you're on WSL or Linux:
-- **Linux**: Uses `docker-compose.local.yml` with HTTP/3 support (TCP+UDP on port 443)
-- **WSL**: Uses `docker-compose.wsl.yml` without HTTP/3 (TCP only, due to WSL port limitations)
+- **Linux**: Uses `docker-compose.local.yml`
+- **WSL**: Uses `docker-compose.wsl.yml`
+
+Since ports are published in host mode from the base `docker-compose.yml` in every
+environment (HTTP/3 on 444/UDP everywhere), `docker-compose.local.yml` and
+`docker-compose.wsl.yml` are now functionally identical. Both are kept so the
+Makefile can still pick one per platform.
 
 **Local uses bind mounts** - you can edit config files directly and they're reflected in the container.
 
@@ -60,6 +67,11 @@ make deploy-local   # Deploy local (bind mounts, mkcert certs)
 make deploy-prod    # Deploy production (Docker configs, Let's Encrypt)
 make undeploy       # Remove the stack
 make logs           # Follow Traefik service logs (via docker service logs)
+
+# Standalone containers (outside Swarm), see the sections below
+make wireguard-up | wireguard-down | wireguard-logs
+make fail2ban-build | fail2ban-up | fail2ban-down | fail2ban-logs | fail2ban-status | fail2ban-test
+make firewall-build | firewall-up | firewall-down | firewall-flush | firewall-status | firewall-logs
 ```
 
 ## Network Configuration
@@ -116,15 +128,17 @@ The Makefile automatically detects your environment and deploys the correct conf
 
 **Docker Compose**:
 - `docker-compose.yml` - Base configuration (common to all environments)
-- `docker-compose.local.yml` - Local override for Linux (bind mounts, HTTP/3)
-- `docker-compose.wsl.yml` - Local override for WSL (bind mounts, no HTTP/3)
-- `docker-compose.prod.yml` - Production override (Docker configs)
+- `docker-compose.local.yml` - Local override for Linux (bind mounts)
+- `docker-compose.wsl.yml` - Local override for WSL (bind mounts; identical to the Linux one since PR #21)
+- `docker-compose.prod.yml` - Production override (Docker configs, access log bind-mounted for fail2ban)
+- `docker-compose.wireguard.yml` / `docker-compose.fail2ban.yml` / `docker-compose.firewall.yml` - Standalone containers (outside Swarm)
 
 **Traefik Config**:
 - `traefik.local.yml` - Local static configuration (no Let's Encrypt, DEBUG logs)
 - `traefik.prod.yml` - Production static configuration (Let's Encrypt, INFO logs)
 - `traefik-dynamic.local.yml` - Local dynamic config (no auth)
 - `traefik-dynamic.prod.yml` - Production dynamic config (with auth)
+- `authelia/` - Authelia configuration (local/prod) and file-based users
 
 ### Certificates
 
@@ -142,7 +156,7 @@ WireGuard VPN via [wg-easy](https://github.com/wg-easy/wg-easy) — web UI for c
 
 ```bash
 # 1. Set WG_HOST in .env.local (server public IP)
-# WG_HOST=51.68.154.52
+# WG_HOST=<server public IP or domain>
 
 # 2. Start WireGuard
 make wireguard-up
@@ -227,7 +241,9 @@ Production deployment includes:
 - ✅ INFO log level (no verbose debug logs)
 - ✅ Let's Encrypt with automatic renewal
 - ✅ TLS 1.2+ only with secure cipher suites
-- ✅ JSON access logs to stdout (4xx/5xx errors only)
+- ✅ JSON access logs (4xx/5xx errors only) written to `/var/log/traefik/access.log` on the host, tailed by fail2ban
+- ✅ Docker socket exposed to Traefik only through a read-only proxy (`dockerproxy`, writes refused)
+- ✅ Host-level fail2ban and default-deny firewall (see [docs/FAIL2BAN.md](docs/FAIL2BAN.md) and [docs/FIREWALL.md](docs/FIREWALL.md))
 
 For detailed security headers explanation, see [docs/SECURITY_HEADERS.md](docs/SECURITY_HEADERS.md)
 
@@ -247,7 +263,10 @@ See [docs/GITHUB_ACTIONS.md](docs/GITHUB_ACTIONS.md) for setup instructions.
 
 ### Logs
 
-All logs are sent to **stdout** for Docker-native logging:
+The Traefik application log (DEBUG locally, INFO in production) goes to **stdout** for
+Docker-native logging. The **access log** differs per environment: disabled locally,
+and in production written as JSON (4xx/5xx only) to `/var/log/traefik/access.log` on the
+host (bind mount) so the standalone fail2ban container can tail it, instead of stdout.
 
 ```bash
 # View all logs (local or prod)
@@ -261,18 +280,9 @@ docker service logs -f traefik_traefik
 
 ### Metrics
 
-To expose Prometheus metrics, add to `traefik.yml`:
-
-```yaml
-metrics:
-  prometheus:
-    addEntryPointsLabels: true
-    addServicesLabels: true
-```
-
-## Migration
-
-Upgrading from a previous configuration? See [docs/MIGRATION.md](docs/MIGRATION.md)
+In production, Prometheus metrics are already enabled in `traefik.prod.yml` on an
+internal-only `metrics` entrypoint (`:8082`, not published to the host), meant to be
+scraped from inside the `traefik_proxy` overlay network.
 
 ## Troubleshooting
 
@@ -309,12 +319,20 @@ certificatesResolvers:
 ```
 traefik-base/
 ├── .env.example                 # Environment template
-├── .env.local                   # Local configuration
-├── docker-compose.yml           # Base configuration (common)
-├── docker-compose.local.yml     # Local override for Linux (bind mounts, HTTP/3)
-├── docker-compose.wsl.yml       # Local override for WSL (bind mounts, no HTTP/3)
+├── .github/workflows/           # CI: deploy (stack, VPN, fail2ban, firewall) + image builds
+│   ├── deploy.yml               # Deploy the Traefik/Authelia stack
+│   ├── deploy-vpn.yml           # Deploy WireGuard
+│   ├── deploy-fail2ban.yml      # Deploy fail2ban
+│   ├── deploy-firewall.yml      # Deploy the firewall
+│   ├── build-fail2ban.yml       # Build & push the fail2ban image to GHCR
+│   └── build-firewall.yml       # Build & push the firewall image to GHCR
+├── docker-compose.yml           # Base configuration (Traefik, dockerproxy, Authelia)
+├── docker-compose.local.yml     # Local override for Linux (bind mounts)
+├── docker-compose.wsl.yml       # Local override for WSL (same as local since PR #21)
 ├── docker-compose.prod.yml      # Production override (Docker configs)
 ├── docker-compose.wireguard.yml # WireGuard VPN (standalone, docker compose)
+├── docker-compose.fail2ban.yml  # fail2ban (standalone, host network)
+├── docker-compose.firewall.yml  # Firewall (standalone, host network)
 ├── traefik.local.yml            # Local static config (DEBUG, no Let's Encrypt)
 ├── traefik.prod.yml             # Production static config (INFO, Let's Encrypt)
 ├── traefik-dynamic.local.yml    # Local dynamic config (no auth)
@@ -323,14 +341,18 @@ traefik-base/
 │   ├── configuration.local.yml  # Local config (debug, local domain)
 │   ├── configuration.prod.yml   # Production config (info, prod domain)
 │   └── users.yml                # User database (password hash injected by CI)
-├── Makefile                  # Deployment commands (auto-detects WSL/Linux)
-├── certs/                    # Local certificates (mkcert)
-├── docs/                     # Documentation
-│   ├── SECURITY_HEADERS.md   # Security headers explained
-│   ├── GITHUB_ACTIONS.md     # CI/CD setup guide
-│   └── MIGRATION.md          # Migration guide
+├── fail2ban/                    # fail2ban image sources (config baked into the image)
+├── firewall/                    # Firewall image sources (ruleset baked into the image)
+├── Makefile                     # Deployment commands (auto-detects WSL/Linux)
+├── certs/                       # Local certificates (mkcert)
+├── docs/                        # Documentation
+│   ├── SECURITY_HEADERS.md      # Security headers explained
+│   ├── GITHUB_ACTIONS.md        # CI/CD setup guide
+│   ├── FAIL2BAN.md              # fail2ban setup and tuning
+│   ├── FIREWALL.md              # Firewall design and how to open a port
+│   └── SERVER_OPS.md            # On-server cheatsheet
 └── scripts/
-    └── generate-secrets.sh   # Secret generation helper
+    └── generate-secrets.sh      # Secret generation helper
 ```
 
 ## License
