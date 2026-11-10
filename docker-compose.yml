@@ -62,7 +62,7 @@ services:
   # (the Swarm API requires a manager); it is the only service that touches
   # the real socket.
   dockerproxy:
-    image: ghcr.io/tecnativa/docker-socket-proxy:latest
+    image: ghcr.io/tecnativa/docker-socket-proxy:v0.5.0  # same digest as :latest at pin time
     environment:
       # Endpoints Traefik's Swarm provider reads to build the routing table
       - SWARM=1        # /swarm
