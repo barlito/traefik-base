@@ -12,7 +12,6 @@ Production-ready Traefik 3.6 setup with Docker Compose overrides for local/produ
 - 📊 Structured JSON logs (app log on stdout, ready for Loki/Fluentd; prod access log in a host file for fail2ban)
 - 🔌 **Docker socket proxy**: Traefik reaches the Swarm API through a read-only `dockerproxy`, the socket is never mounted into Traefik
 - 🚫 **fail2ban** at host level (bans on the Traefik access log)
-- 🐧 **Auto-detection**: WSL vs Linux (automatic in `make deploy-local`)
 - 📦 **Docker Configs for prod** (no file sync needed!)
 - 🔧 **Bind mounts for local** (easy config editing)
 - 🔒 **WireGuard VPN** via wg-easy (web UI, QR codes, split tunnel)
@@ -23,27 +22,21 @@ Production-ready Traefik 3.6 setup with Docker Compose overrides for local/produ
 ### Local Development
 
 ```bash
-# 1. Copy local configuration
+# 1. Copy local configuration and fill in the AUTHELIA_* values
+#    (generation commands are in the file's comments)
 cp .env.example .env.local
 
-# 2. Generate local certificates
-mkdir -p certs
-mkcert -cert-file certs/local-cert.pem -key-file certs/local-key.pem "*.local.barlito.fr"
-
-# 3. Deploy (auto-detects WSL vs Linux)
+# 2. Deploy (same on Linux and WSL)
 make deploy-local
 ```
 
 Dashboard: https://traefik.local.barlito.fr (no authentication required)
 
-**Auto-detection**: The Makefile automatically detects if you're on WSL or Linux:
-- **Linux**: Uses `docker-compose.local.yml`
-- **WSL**: Uses `docker-compose.wsl.yml`
+A self-signed wildcard certificate for `*.local.barlito.fr` is committed in `certs/`
+(local only — see [certs/README.md](certs/README.md) to trust or regenerate it).
 
-Since ports are published in host mode from the base `docker-compose.yml` in every
-environment (HTTP/3 on 444/UDP everywhere), `docker-compose.local.yml` and
-`docker-compose.wsl.yml` are now functionally identical. Both are kept so the
-Makefile can still pick one per platform.
+Linux and WSL use the same override (`docker-compose.local.yml`): ports are published
+in host mode from the base `docker-compose.yml` in every environment (HTTP/3 on 444/UDP).
 
 **Local uses bind mounts** - you can edit config files directly and they're reflected in the container.
 
@@ -63,7 +56,7 @@ Authelia: https://auth.barlito.fr
 
 ```bash
 make help           # Show help message
-make deploy-local   # Deploy local (bind mounts, mkcert certs)
+make deploy-local   # Deploy local (bind mounts, self-signed cert)
 make deploy-prod    # Deploy production (Docker configs, Let's Encrypt)
 make undeploy       # Remove the stack
 make logs           # Follow Traefik service logs (via docker service logs)
@@ -128,8 +121,7 @@ The Makefile automatically detects your environment and deploys the correct conf
 
 **Docker Compose**:
 - `docker-compose.yml` - Base configuration (common to all environments)
-- `docker-compose.local.yml` - Local override for Linux (bind mounts)
-- `docker-compose.wsl.yml` - Local override for WSL (bind mounts; identical to the Linux one since PR #21)
+- `docker-compose.local.yml` - Local override, Linux and WSL (bind mounts)
 - `docker-compose.prod.yml` - Production override (Docker configs, access log bind-mounted for fail2ban)
 - `docker-compose.wireguard.yml` / `docker-compose.fail2ban.yml` / `docker-compose.firewall.yml` - Standalone containers (outside Swarm)
 
@@ -142,7 +134,7 @@ The Makefile automatically detects your environment and deploys the correct conf
 
 ### Certificates
 
-**Local**: Self-signed certificates using [mkcert](https://github.com/FiloSottile/mkcert)
+**Local**: Self-signed wildcard certificate committed in `certs/` (see [certs/README.md](certs/README.md); [mkcert](https://github.com/FiloSottile/mkcert) is an alternative for a browser-trusted one)
 
 **Production**: Automatic Let's Encrypt via HTTP challenge
 
@@ -171,22 +163,6 @@ make wireguard-up
 make wireguard-up     # Start WireGuard
 make wireguard-down   # Stop WireGuard
 make wireguard-logs   # Follow logs
-```
-
-### Restrict a service to VPN only
-
-The `vpn-only@file` middleware restricts access to the WireGuard subnet (`10.8.0.0/24`).
-
-Add this label to the service's compose file:
-
-```yaml
-- traefik.http.routers.myservice-secure.middlewares=vpn-only@file,security-headers@file
-```
-
-Can be combined with Authelia (VPN + login):
-
-```yaml
-- traefik.http.routers.myservice-secure.middlewares=vpn-only@file,authelia-auth@file,security-headers@file
 ```
 
 ### Environment Variables
@@ -299,10 +275,8 @@ dig traefik.barlito.fr
 
 ### Certificate error locally
 
-Regenerate certificates:
-```bash
-mkcert -cert-file certs/local-cert.pem -key-file certs/local-key.pem "*.local.barlito.fr"
-```
+The local certificate is self-signed: the browser warns until you trust it, and it
+expires on 2029-02-12. See [certs/README.md](certs/README.md) to trust or regenerate it.
 
 ### Let's Encrypt rate limit
 
@@ -327,8 +301,7 @@ traefik-base/
 │   ├── build-fail2ban.yml       # Build & push the fail2ban image to GHCR
 │   └── build-firewall.yml       # Build & push the firewall image to GHCR
 ├── docker-compose.yml           # Base configuration (Traefik, dockerproxy, Authelia)
-├── docker-compose.local.yml     # Local override for Linux (bind mounts)
-├── docker-compose.wsl.yml       # Local override for WSL (same as local since PR #21)
+├── docker-compose.local.yml     # Local override, Linux and WSL (bind mounts)
 ├── docker-compose.prod.yml      # Production override (Docker configs)
 ├── docker-compose.wireguard.yml # WireGuard VPN (standalone, docker compose)
 ├── docker-compose.fail2ban.yml  # fail2ban (standalone, host network)
@@ -343,8 +316,8 @@ traefik-base/
 │   └── users.yml                # User database (password hash injected by CI)
 ├── fail2ban/                    # fail2ban image sources (config baked into the image)
 ├── firewall/                    # Firewall image sources (ruleset baked into the image)
-├── Makefile                     # Deployment commands (auto-detects WSL/Linux)
-├── certs/                       # Local certificates (mkcert)
+├── Makefile                     # Deployment commands
+├── certs/                       # Local self-signed certificate
 ├── docs/                        # Documentation
 │   ├── SECURITY_HEADERS.md      # Security headers explained
 │   ├── GITHUB_ACTIONS.md        # CI/CD setup guide

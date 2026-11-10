@@ -1,5 +1,5 @@
-# Local override for Linux - uses bind mounts with HTTP/3 support
-# For WSL, use docker-compose.wsl.yml instead
+# Local override (Linux and WSL) - uses bind mounts. Ports (host mode,
+# HTTP/3 on 444/UDP) are inherited from the base docker-compose.yml.
 
 services:
   traefik:
