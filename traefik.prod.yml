@@ -72,6 +72,8 @@ providers:
     endpoint: tcp://dockerproxy:2375
     exposedByDefault: false
     watch: true
+    # Swarm is polled (no service events); default 15s delays routing after rollouts.
+    refreshSeconds: 5
     network: traefik_traefik_proxy
   file:
     filename: /etc/traefik/dynamic/config.yml

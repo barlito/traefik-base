@@ -21,6 +21,12 @@ storage:
 access_control:
   default_policy: deny
   rules:
+    # Admin UIs: admins group only (first match wins, keep before the wildcard)
+    - domain: 'second-brain-admin.barlito.fr'
+      subject: 'group:admins'
+      policy: two_factor
+    - domain: 'second-brain-admin.barlito.fr'
+      policy: deny
     - domain: '*.barlito.fr'
       policy: two_factor
 
