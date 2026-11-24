@@ -1,50 +1,18 @@
 name: Deploy firewall
 
-# Pulls the pre-built image (see build-firewall.yml) and (re)starts the
-# standalone firewall container on the server over DOCKER_HOST=ssh.
-# Run build-firewall first if firewall/ changed.
-
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  deployments: write
+
 jobs:
   deploy:
-    runs-on: ubuntu-latest
-
-    env:
-      DOCKER_HOST: ssh://${{ vars.SERVER_USERNAME }}@${{ vars.SERVER_HOST }}:${{ vars.SERVER_PORT }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      - name: Add server to known hosts
-        env:
-          SERVER_HOST_KEY: ${{ vars.SERVER_HOST_KEY }}
-          SERVER_HOST: ${{ vars.SERVER_HOST }}
-          SERVER_PORT: ${{ vars.SERVER_PORT }}
-        run: |
-          mkdir -p ~/.ssh
-          if [ -n "$SERVER_HOST_KEY" ]; then
-            # Pinned host key (full known_hosts line, e.g. "[1.2.3.4]:3333 ssh-ed25519 AAAA...")
-            printf '%s\n' "$SERVER_HOST_KEY" >> ~/.ssh/known_hosts
-          else
-            echo "::warning::SERVER_HOST_KEY repository variable is not set: the SSH host key is NOT pinned (trust on first use via ssh-keyscan, MITM-able)."
-            ssh-keyscan -p "$SERVER_PORT" -H "$SERVER_HOST" >> ~/.ssh/known_hosts
-          fi
-
-      - name: Deploy firewall
-        run: |
-          docker compose -f docker-compose.firewall.yml pull
-          docker compose -f docker-compose.firewall.yml up -d
-
-      - name: Verify Deployment
-        run: |
-          docker ps --filter name=firewall --format "table {{.Names}}\t{{.Status}}"
-          sleep 5
-          docker logs firewall --tail 5
+    uses: barlito/ci/.github/workflows/swarm-deploy.yaml@v1
+    with:
+      target: deploy.firewall
+      require-tag: false
+      images: ""
+      submodules: false
+    secrets: inherit

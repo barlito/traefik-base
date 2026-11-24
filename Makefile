@@ -44,7 +44,7 @@ deploy-local:
 			fi; \
 		done && \
 		sed "s|\$$AUTHELIA_USER_PASSWORD_HASH|$$AUTHELIA_USER_PASSWORD_HASH|" authelia/users.yml > authelia/users.local.yml && \
-		docker stack deploy -c docker-compose.yml -c docker-compose.local.yml $(stack_name)
+		docker stack deploy --detach=false -c docker-compose.yml -c docker-compose.local.yml $(stack_name)
 	@echo "✅ Deployed!"
 	@echo "📊 Dashboard: https://traefik.local.barlito.fr"
 	@echo "🔐 Authelia: https://auth.local.barlito.fr"
@@ -60,10 +60,41 @@ deploy-prod:
 	fi
 	@echo "🚀 Deploying Traefik (production)..."
 	@export CONFIG_VERSION=$$(cat traefik.prod.yml traefik-dynamic.prod.yml authelia/configuration.prod.yml authelia/users.yml | sha1sum | cut -c1-10) && \
-		docker stack deploy -c docker-compose.yml -c docker-compose.prod.yml $(stack_name)
+		docker stack deploy --detach=false -c docker-compose.yml -c docker-compose.prod.yml $(stack_name)
 	@echo "✅ Deployed!"
 	@echo "📊 Dashboard: https://$$DASHBOARD_HOST"
 	@echo "🔐 Authelia: https://auth.barlito.fr"
+
+# Targets called by the GitHub deploy workflows (barlito/ci swarm-deploy).
+# Secrets come from the environment; every target is idempotent.
+
+# Fills the placeholders of the prod configs in the working tree (the CI
+# checkout is thrown away; do not run it locally, the result must not be committed).
+.PHONY: render.prod
+render.prod:
+	@: "$${AUTHELIA_USER_PASSWORD_HASH:?AUTHELIA_USER_PASSWORD_HASH is required}" "$${ACME_EMAIL:?ACME_EMAIL is required}"
+	@sed -i 's|\$$AUTHELIA_USER_PASSWORD_HASH|'"$$AUTHELIA_USER_PASSWORD_HASH"'|' authelia/users.yml
+	@sed -i 's|\$$ACME_EMAIL|'"$$ACME_EMAIL"'|' traefik.prod.yml
+
+.PHONY: deploy.prod
+deploy.prod: render.prod deploy-prod deploy.vpn
+	@docker service ls --filter label=com.docker.stack.namespace=$(stack_name)
+
+.PHONY: deploy.vpn
+deploy.vpn:
+	@: "$${WG_HOST:?WG_HOST is required}"
+	@$(MAKE) --no-print-directory wireguard-up
+	@docker ps --filter name=wg-easy --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+.PHONY: deploy.fail2ban
+deploy.fail2ban: fail2ban-up
+	@docker ps --filter name=fail2ban --format "table {{.Names}}\t{{.Status}}"
+
+.PHONY: deploy.firewall
+deploy.firewall: firewall-up
+	@docker ps --filter name=firewall --format "table {{.Names}}\t{{.Status}}"
+	@sleep 5
+	@docker logs firewall --tail 5
 
 .PHONY: undeploy
 undeploy:

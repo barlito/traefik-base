@@ -1,0 +1,34 @@
+name: check
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  docker-check:
+    uses: barlito/ci/.github/workflows/docker-check.yaml@v1
+    with:
+      compose-files: docker-compose.yml docker-compose.wireguard.yml docker-compose.fail2ban.yml docker-compose.firewall.yml
+      compose-env: |
+        WG_HOST=vpn.example.invalid
+        DASHBOARD_HOST=traefik.example.invalid
+        AUTHELIA_JWT_SECRET=dummy
+        AUTHELIA_SESSION_SECRET=dummy
+        AUTHELIA_STORAGE_ENCRYPTION_KEY=dummy
+
+  stack-config:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DASHBOARD_HOST: traefik.example.invalid
+      AUTHELIA_JWT_SECRET: dummy
+      AUTHELIA_SESSION_SECRET: dummy
+      AUTHELIA_STORAGE_ENCRYPTION_KEY: dummy
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate the merged prod stack
+        run: docker stack config -c docker-compose.yml -c docker-compose.prod.yml > /dev/null
