@@ -2,42 +2,43 @@
 
 How the production stack is deployed from GitHub Actions to a single-node Docker Swarm, over `DOCKER_HOST=ssh://`.
 
+The deploy workflows are thin callers of the reusable `swarm-deploy` workflow of [barlito/ci](https://github.com/barlito/ci) (`@v1`). It handles the SSH connection (pinned host key), the registry login and the concurrency; everything specific to this repository lives in `make` targets (`deploy.prod`, `deploy.vpn`, `deploy.fail2ban`, `deploy.firewall`).
+
 ## GitHub Configuration
 
-Go to **Settings** -> **Secrets and variables** -> **Actions**.
+Go to **Settings** -> **Environments** -> **production** (and **Secrets and variables** -> **Actions** for the repository-level values).
 
-### Repository Variables
+### `production` environment
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `SERVER_USERNAME` | SSH username | `deploy` |
-| `SERVER_HOST` | Server hostname or IP (also used as `WG_HOST` for WireGuard) | `server.barlito.fr` |
-| `SERVER_PORT` | SSH port | `22` |
-| `SERVER_HOST_KEY` | Optional. Pinned SSH host key (a full `known_hosts` line) | `[1.2.3.4]:22 ssh-ed25519 AAAA...` |
+| Kind | Name | Description |
+|------|------|-------------|
+| Variable | `SERVER_HOST` | Server hostname or IP |
+| Secret | `SERVER_USERNAME` | SSH username |
+| Secret | `SERVER_PORT` | SSH port |
+| Secret | `SERVER_HOST_KEY` | Pinned SSH host key: a single `known_hosts` line with the ed25519 key (see below) |
+| Secret | `SSH_PRIVATE_KEY` | Private key (ed25519) of the deploy user on the server |
+| Secret | `DOCKER_HUB_USERNAME`, `DOCKER_HUB_READ_ONLY_ACCESS_TOKEN` | Registry login done by `swarm-deploy` before every deploy |
+| Secret | `WG_HOST` | Public hostname or IP advertised by WireGuard |
+| Secret | `DASHBOARD_HOST` | Traefik dashboard domain, e.g. `traefik.barlito.fr` |
+| Secret | `ACME_EMAIL` | Let's Encrypt account email |
+| Secret | `AUTHELIA_JWT_SECRET` | Authelia reset-password JWT secret (passed to the container as `AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET`) |
+| Secret | `AUTHELIA_SESSION_SECRET` | Authelia session secret |
+| Secret | `AUTHELIA_STORAGE_ENCRYPTION_KEY` | Authelia storage encryption key |
+| Secret | `AUTHELIA_USER_PASSWORD_HASH` | argon2 hash of the Authelia user password |
+
+Only the secrets listed in `env-secrets` of each workflow are exported to `make`: all of the above for **Deploy Traefik Stack**, only `WG_HOST` for **Deploy WireGuard VPN**, none for fail2ban and the firewall.
 
 #### Pinning the SSH host key (`SERVER_HOST_KEY`)
 
-If `SERVER_HOST_KEY` is empty, every workflow falls back to `ssh-keyscan` at run time (trust on first use, a man-in-the-middle could be accepted) and prints a `::warning::` annotation. To pin the key:
+`swarm-deploy` refuses to run without a pinned key (no `ssh-keyscan`, no trust on first use). To get it:
 
 ```bash
-ssh-keyscan -p <port> <host>
+ssh-keyscan -t ed25519 -p <port> <host>
 ```
 
-Verify the fingerprint out-of-band (for example from the server console with `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`), then store the matching `ssh-ed25519` line, unchanged, as the variable value. With a non-default port the line starts with `[host]:port`.
+Verify the fingerprint out-of-band (for example from the server console with `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`), then store the matching `ssh-ed25519` line, unchanged, as the secret value. With a non-default port the line starts with `[host]:port`.
 
-### Repository Secrets
-
-| Secret | Description |
-|--------|-------------|
-| `SSH_PRIVATE_KEY` | Private key (ed25519) of the deploy user on the server |
-| `DASHBOARD_HOST` | Traefik dashboard domain, e.g. `traefik.barlito.fr` |
-| `ACME_EMAIL` | Let's Encrypt account email |
-| `AUTHELIA_JWT_SECRET` | Authelia reset-password JWT secret (passed to the container as `AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET`) |
-| `AUTHELIA_SESSION_SECRET` | Authelia session secret |
-| `AUTHELIA_STORAGE_ENCRYPTION_KEY` | Authelia storage encryption key |
-| `AUTHELIA_USER_PASSWORD_HASH` | argon2 hash of the Authelia user password |
-
-Generate the values interactively with:
+Generate the Authelia values interactively with:
 
 ```bash
 ./scripts/generate-secrets.sh
@@ -53,34 +54,33 @@ cat ~/.ssh/github_actions   # value of the SSH_PRIVATE_KEY secret
 
 ## Workflows
 
-All deploy workflows are manual (`workflow_dispatch`). They connect to the server through `DOCKER_HOST` and the SSH agent (`SSH_PRIVATE_KEY`), then add the server key to `known_hosts` (see `SERVER_HOST_KEY`).
+All deploy workflows are manual (`workflow_dispatch`) and run on the default branch. They share one concurrency group, so two deploys never overlap.
 
 | Workflow | File | When to run |
 |----------|------|-------------|
-| Deploy Traefik Stack | `deploy.yml` | Changes to Traefik, Authelia or stack config. Runs `make deploy-prod`, then starts WireGuard. Optional `undeploy` input: `make undeploy` first for a clean restart. |
-| Deploy WireGuard VPN | `deploy-vpn.yml` | Only the wg-easy container needs (re)starting (`docker compose -f docker-compose.wireguard.yml up -d`). |
-| Build fail2ban image | `build-fail2ban.yml` | Builds and pushes `ghcr.io/barlito/traefik-base-fail2ban`. Runs on push to `master` touching `fail2ban/**`, or manually. |
-| Deploy fail2ban | `deploy-fail2ban.yml` | After the build workflow, to pull and restart fail2ban on the server. |
-| Build firewall image | `build-firewall.yml` | Builds and pushes `ghcr.io/barlito/traefik-base-firewall`. Runs on push to `master` touching `firewall/**`, or manually. |
-| Deploy firewall | `deploy-firewall.yml` | After the build workflow, to pull and restart the firewall container on the server. |
+| Deploy Traefik Stack | `deploy.yml` | Changes to Traefik, Authelia or stack config. Runs `make deploy.prod` (stack, then WireGuard). |
+| Deploy WireGuard VPN | `deploy-vpn.yml` | Only the wg-easy container needs (re)starting (`make deploy.vpn`). |
+| Build fail2ban image | `build-fail2ban.yml` | Builds and pushes `ghcr.io/barlito/traefik-base-fail2ban` (`latest` and the commit sha). Runs on push to `master` touching `fail2ban/**`, or manually. |
+| Deploy fail2ban | `deploy-fail2ban.yml` | After the build workflow, to pull and restart fail2ban on the server (`make deploy.fail2ban`). |
+| Build firewall image | `build-firewall.yml` | Builds and pushes `ghcr.io/barlito/traefik-base-firewall` (`latest` and the commit sha). Runs on push to `master` touching `firewall/**`, or manually. |
+| Deploy firewall | `deploy-firewall.yml` | After the build workflow, to pull and restart the firewall container on the server (`make deploy.firewall`). |
+| check | `check.yml` | Pull requests: validates the standalone compose files and the merged prod stack (`docker stack config`). |
 
 Typical order: change under `fail2ban/` or `firewall/` -> build workflow (automatic on merge) -> matching deploy workflow.
 
 The GHCR packages `traefik-base-fail2ban` and `traefik-base-firewall` must be set to **public** (Packages -> Package settings -> Change visibility) after the first push, so the server can pull them without credentials.
 
-## How deploy.yml works
+## How `make deploy.prod` works
 
-1. Checkout, SSH agent setup, known hosts.
-2. **Render config placeholders**: two `sed` commands replace literal placeholders in the checked-out files (on the runner only, nothing is committed):
+1. `render.prod`: two `sed` commands replace literal placeholders in the checked-out files (on the runner only, nothing is committed):
    - `$AUTHELIA_USER_PASSWORD_HASH` in `authelia/users.yml`
    - `$ACME_EMAIL` in `traefik.prod.yml`
 
-   This keeps secrets and personal data out of the public repo. The ACME email goes through a placeholder because Traefik's static configuration sources are mutually exclusive: once `/etc/traefik/traefik.yml` exists, `TRAEFIK_*` environment variables are ignored.
-3. Optional `make undeploy`.
-4. `make deploy-prod`. It aborts if either placeholder is still present in the files (for example a manual run without rendering).
-5. `docker compose -f docker-compose.wireguard.yml up -d`, then a verification step (`docker service ls`, `docker service ps`, wg-easy status).
+   This keeps secrets and personal data out of the public repo. The ACME email goes through a placeholder because Traefik's static configuration sources are mutually exclusive: once `/etc/traefik/traefik.yml` exists, `TRAEFIK_*` environment variables are ignored. Do not run this target on a working copy you intend to commit.
+2. `deploy-prod`: aborts if either placeholder is still present, then runs `docker stack deploy --detach=false` (idempotent, waits for the services to converge, never removes the stack).
+3. `deploy.vpn`: `docker compose -f docker-compose.wireguard.yml up -d` and a status listing.
 
-Other values (`DASHBOARD_HOST`, `ACME_EMAIL`, Authelia secrets) are passed as environment variables to `docker stack deploy`; no `.env` file is created.
+Other values (`DASHBOARD_HOST`, Authelia secrets) are passed as environment variables to `docker stack deploy`; no `.env` file is created.
 
 ## Docker configs and CONFIG_VERSION
 
@@ -95,7 +95,7 @@ Locally (`make deploy-local`) the files are bind-mounted instead, for easy itera
 - Check permissions: `chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys`.
 
 ### "Host key verification failed"
-- `SERVER_HOST_KEY` does not match the server (key rotated, wrong port in the `[host]:port` prefix). Re-run `ssh-keyscan -p <port> <host>` and update the variable.
+- `SERVER_HOST_KEY` does not match the server (key rotated, wrong port in the `[host]:port` prefix). Re-run `ssh-keyscan -p <port> <host>` and update the secret.
 
 ### `make deploy-prod` aborts about a placeholder
 - The file still contains `$ACME_EMAIL` or `$AUTHELIA_USER_PASSWORD_HASH`. Run it through the deploy workflow, or render the placeholders yourself (and do not commit the result).

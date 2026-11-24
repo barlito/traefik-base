@@ -1,76 +1,19 @@
 name: Deploy Traefik Stack
 
 on:
-  workflow_dispatch:  # Manual trigger only
-    inputs:
-      undeploy:
-        description: 'Full restart: undeploy first, then deploy (clean state)'
-        required: false
-        type: boolean
-        default: false
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
-
-    env:
-      DOCKER_HOST: ssh://${{ vars.SERVER_USERNAME }}@${{ vars.SERVER_HOST }}:${{ vars.SERVER_PORT }}
-      DASHBOARD_HOST: ${{ secrets.DASHBOARD_HOST }}
-      ACME_EMAIL: ${{ secrets.ACME_EMAIL }}
-      AUTHELIA_JWT_SECRET: ${{ secrets.AUTHELIA_JWT_SECRET }}
-      AUTHELIA_SESSION_SECRET: ${{ secrets.AUTHELIA_SESSION_SECRET }}
-      AUTHELIA_STORAGE_ENCRYPTION_KEY: ${{ secrets.AUTHELIA_STORAGE_ENCRYPTION_KEY }}
-      AUTHELIA_USER_PASSWORD_HASH: ${{ secrets.AUTHELIA_USER_PASSWORD_HASH }}
-      WG_HOST: ${{ vars.SERVER_HOST }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      - name: Add server to known hosts
-        env:
-          SERVER_HOST_KEY: ${{ vars.SERVER_HOST_KEY }}
-          SERVER_HOST: ${{ vars.SERVER_HOST }}
-          SERVER_PORT: ${{ vars.SERVER_PORT }}
-        run: |
-          mkdir -p ~/.ssh
-          if [ -n "$SERVER_HOST_KEY" ]; then
-            # Pinned host key (full known_hosts line, e.g. "[1.2.3.4]:3333 ssh-ed25519 AAAA...")
-            printf '%s\n' "$SERVER_HOST_KEY" >> ~/.ssh/known_hosts
-          else
-            echo "::warning::SERVER_HOST_KEY repository variable is not set: the SSH host key is NOT pinned (trust on first use via ssh-keyscan, MITM-able)."
-            ssh-keyscan -p "$SERVER_PORT" -H "$SERVER_HOST" >> ~/.ssh/known_hosts
-          fi
-
-      - name: Render config placeholders
-        run: |
-          sed -i "s|\$AUTHELIA_USER_PASSWORD_HASH|${AUTHELIA_USER_PASSWORD_HASH}|" authelia/users.yml
-          sed -i "s|\$ACME_EMAIL|${ACME_EMAIL}|" traefik.prod.yml
-
-      - name: Undeploy Stack (if restart requested)
-        if: ${{ inputs.undeploy == true }}
-        run: |
-          echo "🗑️ Undeploying stack for clean restart..."
-          make undeploy
-          echo "⏳ Waiting for stack to be fully removed..."
-          sleep 5
-
-      - name: Deploy Stack
-        run: make deploy-prod
-
-      - name: Deploy WireGuard
-        run: docker compose -f docker-compose.wireguard.yml up -d
-
-      - name: Verify Deployment
-        run: |
-          echo "⏳ Waiting for service to be ready..."
-          sleep 10
-          docker service ls
-          docker service ps traefik_traefik --no-trunc
-          docker service ps traefik_authelia --no-trunc
-          docker ps --filter name=wg-easy --format "table {{.Names}}\t{{.Status}}"
+    uses: barlito/ci/.github/workflows/swarm-deploy.yaml@v1
+    with:
+      target: deploy.prod
+      require-tag: false
+      images: ""
+      submodules: false
+      env-secrets: DASHBOARD_HOST ACME_EMAIL AUTHELIA_JWT_SECRET AUTHELIA_SESSION_SECRET AUTHELIA_STORAGE_ENCRYPTION_KEY AUTHELIA_USER_PASSWORD_HASH WG_HOST
+    secrets: inherit
